@@ -4,8 +4,10 @@
    Loaded first — exposes everything via window.LT
 ═══════════════════════════════════════════════ */
 
-/* ── API base ──────────────────────────────────────── */
-const API = "http://localhost/legaltekorder/fase3/api.php";
+/* ── API base ──────────────────────────────────────────
+   Comes from .env via env.js.php (window.LT_ENV.API_URL).
+   The literal below is only a fallback if env.js.php didn't load. */
+const API = window.LT_ENV?.API_URL || "http://localhost/LegalTek/api.php";
 
 const LT_USER_ID_KEY = "lt_user_id";
 

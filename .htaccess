@@ -1,0 +1,15 @@
+# ═══════════════════════════════════════════════════════════
+# LegalTek AI — deny direct HTTP access to dotfiles and secrets.
+# Without this, http://localhost/LegalTek/.env serves DB_PASS as plain text.
+# ═══════════════════════════════════════════════════════════
+
+# All dotfiles: .env, .env.example, .git*, ...
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# env.php only defines helpers (config.php includes it from disk, not over HTTP),
+# so there's no reason to allow a direct request for it.
+<Files "env.php">
+    Require all denied
+</Files>

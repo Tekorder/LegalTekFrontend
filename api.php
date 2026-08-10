@@ -6,7 +6,7 @@
  * Hierarchy: users → cases → conversations → messages
  *                          → documents
  *
- * DB: localhost / root / (no password) / legaltek
+ * DB: credentials come from .env via config.php (see .env.example)
  * Requires config.php with Ollama and CourtListener settings.
  */
 
@@ -25,9 +25,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 // ── DB Connection ─────────────────────────────────────────
 try {
     $pdo = new PDO(
-        'mysql:host=localhost;dbname=legaltek;charset=utf8mb4',
-        'root',
-        '',
+        'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8mb4',
+        DB_USER,
+        DB_PASS,
         [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,

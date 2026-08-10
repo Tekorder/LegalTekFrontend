@@ -1,8 +1,9 @@
 <?php
 /**
- * LegalTek AI — config.php
- * ⚠️  Never commit this file to git or deploy to production with a real key.
- *     Add config.php to your .gitignore.
+ * LegalTek AI — config.php.example
+ *
+ * Template for config.php, which is gitignored because it holds API keys.
+ * Setup:  cp config.php.example config.php   then fill in CL_API_TOKEN.
  *
  * Database + API URL live in .env (see .env.example) — not here.
  */
@@ -27,8 +28,8 @@ define('OLLAMA_MODEL',       env('OLLAMA_MODEL', 'llama3.2:latest'));
 define('OLLAMA_TIMEOUT',     (int) env('OLLAMA_TIMEOUT', 300));
 
 // ── CourtListener (https://www.courtlistener.com/sign-in/) ──
-// Get your token at: Profile → API Token
-define('CL_API_TOKEN', '7f245e25661f82c83a1f6aad94dfca4680400a7d');
+// Get your token at: Profile → API Token. Leave blank in the template.
+define('CL_API_TOKEN', '');
 
 // Max characters of document text sent to the model
 define('OLLAMA_DOC_MAX_CHARS', 80000);
