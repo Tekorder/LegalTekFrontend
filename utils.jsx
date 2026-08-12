@@ -99,6 +99,12 @@ function fmtDate(dateStr) {
   });
 }
 
+/* ── Format a number as USD currency (e.g. "$1,250.00") ─ */
+function fmtMoney(value) {
+  const n = Number(value) || 0;
+  return n.toLocaleString("en-US", { style: "currency", currency: "USD" });
+}
+
 /* ══════════════════════════════════════════════════════
    SVG ICONS
 ══════════════════════════════════════════════════════ */
@@ -127,6 +133,8 @@ const SVG_PATHS = {
   minimize:    "M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3",
   link:        "M10 13a5 5 0 0 1 0-7l1.5-1.5a5 5 0 0 1 7 7L16 13M14 11a5 5 0 0 1 0 7l-1.5 1.5a5 5 0 0 1-7-7l2-2",
   chart:       "M4 19h16M4 15l4-8 4 5 4-9 4 6",
+  dollar:      "M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6",
+  calendar:    "M8 2v4M16 2v4M3.5 9h17M4 4h16a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z",
 };
 
 function Ico({ name, size = 18, stroke = "currentColor", strokeWidth = 2, className = "" }) {
@@ -183,6 +191,7 @@ window.apiUpload     = apiUpload;
 window.dateGroup     = dateGroup;
 window.fmtTime       = fmtTime;
 window.fmtDate       = fmtDate;
+window.fmtMoney      = fmtMoney;
 window.SVG_PATHS     = SVG_PATHS;
 window.Ico           = Ico;
 window.RenderContent = RenderContent;

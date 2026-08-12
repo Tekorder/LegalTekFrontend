@@ -4,7 +4,7 @@
 ═══════════════════════════════════════════════ */
 
 const { useState, useEffect, useRef } = React;
-const { Ico, Spinner, fmtDate, apiFetch, apiPost, getUserId } = window;
+const { Ico, Spinner, fmtDate, fmtMoney, apiFetch, apiPost, getUserId } = window;
 
 /* ── Matter type visual config ─────────────────────────── */
 const MATTER_STYLES = {
@@ -24,6 +24,7 @@ function CaseCard({ caseData, onOpen, onDelete }) {
   const [deleting, setDeleting] = useState(false);
 
   const mt = MATTER_STYLES[caseData.matter_type] ?? MATTER_STYLES.other;
+  const billedTotal = Number(caseData.billed_total) || 0;
 
   const handleDelete = async (e) => {
     e.stopPropagation();
@@ -74,6 +75,16 @@ function CaseCard({ caseData, onOpen, onDelete }) {
           </p>
         )}
       </div>
+
+      {/* Billed total */}
+      {billedTotal > 0 && (
+        <div
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg self-start"
+          style={{ background: 'rgba(212,175,55,0.1)', border: '1px solid rgba(212,175,55,0.25)' }}>
+          <Ico name="dollar" size={12} stroke="#d4af37" />
+          <span className="text-xs font-semibold" style={{ color: '#d4af37' }}>{fmtMoney(billedTotal)} billed</span>
+        </div>
+      )}
 
       {/* Stats row */}
       <div className="flex items-center gap-3 text-xs flex-nowrap overflow-hidden" style={{ color: 'rgba(255,255,255,0.38)' }}>
@@ -145,11 +156,19 @@ function CaseCard({ caseData, onOpen, onDelete }) {
    CREATE CASE MODAL
 ══════════════════════════════════════════════════════ */
 function CreateCaseModal({ onClose, onCreate }) {
+  const [step,        setStep]        = useState('details'); // 'details' | 'clients'
   const [title,       setTitle]       = useState('');
   const [description, setDescription] = useState('');
   const [matterType,  setMatterType]  = useState('other');
   const [saving,      setSaving]      = useState(false);
-  const titleRef = useRef();
+
+  const [clients,        setClients]        = useState([]);
+  const [loadingClients, setLoadingClients]  = useState(false);
+  const [selectedIds,    setSelectedIds]     = useState([]);
+  const [clientQuery,    setClientQuery]     = useState('');
+
+  const titleRef       = useRef();
+  const clientSearchRef = useRef();
 
   useEffect(() => {
     titleRef.current?.focus();
@@ -158,11 +177,51 @@ function CreateCaseModal({ onClose, onCreate }) {
     return () => window.removeEventListener('keydown', handleKey);
   }, []);
 
-  const handleSubmit = async () => {
-    if (!title.trim() || saving) return;
+  const goToClients = async () => {
+    if (!title.trim()) return;
+    setStep('clients');
+    setLoadingClients(true);
+    try {
+      const data = await apiFetch('clients.list', { user_id: getUserId() });
+      setClients(data);
+    } catch (e) {
+      setClients([]);
+    } finally {
+      setLoadingClients(false);
+    }
+  };
+
+  const toggleClient = (id) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const selectClient = (id) => {
+    toggleClient(id);
+    setClientQuery('');
+    clientSearchRef.current?.focus();
+  };
+
+  useEffect(() => {
+    if (step === 'clients' && !loadingClients) clientSearchRef.current?.focus();
+  }, [step, loadingClients]);
+
+  const selectedClients = clients.filter(c => selectedIds.includes(c.id));
+  const clientQueryLower = clientQuery.trim().toLowerCase();
+  const matchingClients = clients.filter(c =>
+    !selectedIds.includes(c.id) &&
+    (!clientQueryLower ||
+      c.name.toLowerCase().includes(clientQueryLower) ||
+      (c.company || '').toLowerCase().includes(clientQueryLower))
+  );
+  const CLIENT_RESULTS_LIMIT = 8;
+  const visibleClientResults = matchingClients.slice(0, CLIENT_RESULTS_LIMIT);
+  const hiddenClientCount = matchingClients.length - visibleClientResults.length;
+
+  const finish = async (clientIds) => {
+    if (saving) return;
     setSaving(true);
     try {
-      await onCreate({ title: title.trim(), description: description.trim(), matter_type: matterType });
+      await onCreate({ title: title.trim(), description: description.trim(), matter_type: matterType, client_ids: clientIds });
       onClose();
     } finally {
       setSaving(false);
@@ -172,7 +231,7 @@ function CreateCaseModal({ onClose, onCreate }) {
   const handleKey = (e) => {
     if (e.key === 'Enter' && !e.shiftKey && e.target.tagName !== 'TEXTAREA') {
       e.preventDefault();
-      handleSubmit();
+      if (step === 'details') goToClients();
     }
   };
 
@@ -187,83 +246,209 @@ function CreateCaseModal({ onClose, onCreate }) {
         style={{ border: '1px solid rgba(0,0,0,0.1)', boxShadow: '0 8px 40px rgba(0,0,0,0.15)' }}
         onClick={e => e.stopPropagation()}>
 
-        <div className="flex items-center gap-3 mb-6">
-          <div className="btn-primary w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0">
-            <Ico name="plus" size={16} stroke="white" strokeWidth={2.5} />
-          </div>
-          <div>
-            <h3 className="text-gray-900 font-semibold text-base leading-none">New Project</h3>
-            <p className="text-gray-500 text-xs mt-0.5">Create a new legal matter</p>
-          </div>
-        </div>
+        {step === 'details' ? (
+          <>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="btn-primary w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Ico name="plus" size={16} stroke="white" strokeWidth={2.5} />
+              </div>
+              <div>
+                <h3 className="text-gray-900 font-semibold text-base leading-none">New Project</h3>
+                <p className="text-gray-500 text-xs mt-0.5">Create a new legal matter</p>
+              </div>
+            </div>
 
-        <div className="flex flex-col gap-4">
-          {/* Title */}
-          <div>
-            <label className="text-xs font-semibold text-gray-500 mb-1.5 block uppercase tracking-wide">
-              Project Title *
-            </label>
-            <input
-              ref={titleRef}
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              placeholder="e.g. Smith vs Jones Corp"
-              maxLength={200}
-              className="w-full chat-input rounded-lg px-4 py-2.5 text-sm"
-            />
-          </div>
+            <div className="flex flex-col gap-4">
+              {/* Title */}
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 block uppercase tracking-wide">
+                  Project Title *
+                </label>
+                <input
+                  ref={titleRef}
+                  value={title}
+                  onChange={e => setTitle(e.target.value)}
+                  placeholder="e.g. Smith vs Jones Corp"
+                  maxLength={200}
+                  className="w-full chat-input rounded-lg px-4 py-2.5 text-sm"
+                />
+              </div>
 
-          {/* Description */}
-          <div>
-            <label className="text-xs font-semibold text-gray-500 mb-1.5 block uppercase tracking-wide">
-              Description
-            </label>
-            <textarea
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              placeholder="Brief description of the legal matter..."
-              rows={3}
-              maxLength={500}
-              className="w-full chat-input rounded-lg px-4 py-2.5 text-sm resize-none"
-            />
-          </div>
+              {/* Description */}
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 block uppercase tracking-wide">
+                  Description
+                </label>
+                <textarea
+                  value={description}
+                  onChange={e => setDescription(e.target.value)}
+                  placeholder="Brief description of the legal matter..."
+                  rows={3}
+                  maxLength={500}
+                  className="w-full chat-input rounded-lg px-4 py-2.5 text-sm resize-none"
+                />
+              </div>
 
-          {/* Matter type */}
-          <div>
-            <label className="text-xs font-semibold text-gray-500 mb-1.5 block uppercase tracking-wide">
-              Matter Type
-            </label>
-            <select
-              value={matterType}
-              onChange={e => setMatterType(e.target.value)}
-              className="w-full chat-input rounded-lg px-4 py-2.5 text-sm"
-              style={{ appearance: 'auto' }}>
-              <option value="contract">Contract</option>
-              <option value="litigation">Litigation</option>
-              <option value="advisory">Advisory</option>
-              <option value="corporate">Corporate</option>
-              <option value="analysis_reporting">Analysis and Reporting</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-        </div>
+              {/* Matter type */}
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-1.5 block uppercase tracking-wide">
+                  Matter Type
+                </label>
+                <select
+                  value={matterType}
+                  onChange={e => setMatterType(e.target.value)}
+                  className="w-full chat-input rounded-lg px-4 py-2.5 text-sm"
+                  style={{ appearance: 'auto' }}>
+                  <option value="contract">Contract</option>
+                  <option value="litigation">Litigation</option>
+                  <option value="advisory">Advisory</option>
+                  <option value="corporate">Corporate</option>
+                  <option value="analysis_reporting">Analysis and Reporting</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+            </div>
 
-        <div className="flex items-center gap-3 mt-6">
-          <button
-            onClick={onClose}
-            className="flex-1 py-2.5 rounded-lg text-sm text-gray-500 hover:text-gray-700 transition-colors"
-            style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.1)' }}>
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={!title.trim() || saving}
-            className="flex-1 btn-primary py-2.5 rounded-lg text-white text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50">
-            {saving
-              ? <><Spinner size={14} /> Creating…</>
-              : <><Ico name="plus" size={14} stroke="white" /> Create Project</>}
-          </button>
-        </div>
+            <div className="flex items-center gap-3 mt-6">
+              <button
+                onClick={onClose}
+                className="flex-1 py-2.5 rounded-lg text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.1)' }}>
+                Cancel
+              </button>
+              <button
+                onClick={goToClients}
+                disabled={!title.trim()}
+                className="flex-1 btn-primary py-2.5 rounded-lg text-white text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50">
+                Next
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="btn-primary w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Ico name="users" size={16} stroke="white" strokeWidth={2.5} />
+              </div>
+              <div>
+                <h3 className="text-gray-900 font-semibold text-base leading-none">Select Clients</h3>
+                <p className="text-gray-500 text-xs mt-0.5">Add clients to this project — or skip for now</p>
+              </div>
+            </div>
+
+            {loadingClients && (
+              <div className="flex items-center justify-center gap-3 py-10 text-stone-400">
+                <Spinner size={18} />
+                <span className="text-sm">Loading clients…</span>
+              </div>
+            )}
+
+            {!loadingClients && clients.length === 0 && (
+              <div className="text-center py-8">
+                <p className="text-sm text-gray-500">You don't have any clients yet.</p>
+                <p className="text-xs text-gray-400 mt-1">This project can still be created without one.</p>
+              </div>
+            )}
+
+            {!loadingClients && clients.length > 0 && (
+              <div className="flex flex-col gap-3">
+                {/* Selected clients as removable chips */}
+                {selectedClients.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedClients.map(c => (
+                      <span key={c.id}
+                        className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full text-xs font-medium"
+                        style={{ background: 'rgba(212,175,55,0.12)', border: '1px solid rgba(212,175,55,0.3)', color: '#8a6d1a' }}>
+                        {c.name}
+                        <button
+                          type="button"
+                          onClick={() => toggleClient(c.id)}
+                          className="rounded-full p-0.5 transition-colors"
+                          style={{ color: '#8a6d1a' }}
+                          title="Remove">
+                          <Ico name="close" size={10} stroke="currentColor" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Search box */}
+                <div className="relative">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" style={{ pointerEvents: 'none' }}>
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="M21 21l-4.35-4.35" />
+                  </svg>
+                  <input
+                    ref={clientSearchRef}
+                    value={clientQuery}
+                    onChange={e => setClientQuery(e.target.value)}
+                    placeholder="Search clients by name or company…"
+                    className="w-full chat-input rounded-lg pl-9 pr-4 py-2.5 text-sm"
+                  />
+                </div>
+
+                {/* Search results */}
+                <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1">
+                  {visibleClientResults.length === 0 && (
+                    <p className="text-xs text-gray-400 text-center py-3">
+                      {clientQueryLower ? 'No clients match your search.' : 'All your clients are already selected.'}
+                    </p>
+                  )}
+                  {visibleClientResults.map(c => (
+                    <button key={c.id}
+                      type="button"
+                      onClick={() => selectClient(c.id)}
+                      className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-left transition-colors"
+                      style={{ background: 'rgba(0,0,0,0.02)', border: '1px solid rgba(0,0,0,0.08)' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(212,175,55,0.07)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0.02)'}>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate leading-none">{c.name}</p>
+                        {c.company && <p className="text-xs text-gray-400 mt-0.5 truncate">{c.company}</p>}
+                      </div>
+                      <Ico name="plus" size={13} stroke="rgba(212,175,55,0.85)" />
+                    </button>
+                  ))}
+                  {hiddenClientCount > 0 && (
+                    <p className="text-[11px] text-gray-400 text-center py-1">
+                      +{hiddenClientCount} more — keep typing to narrow it down
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center gap-3 mt-6">
+              <button
+                onClick={() => setStep('details')}
+                disabled={saving}
+                className="py-2.5 px-4 rounded-lg text-sm text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-50"
+                style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.1)' }}>
+                Back
+              </button>
+              <button
+                onClick={() => finish([])}
+                disabled={saving}
+                className="flex-1 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors disabled:opacity-50"
+                style={{ background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.1)' }}>
+                Skip
+              </button>
+              <button
+                onClick={() => finish(selectedIds)}
+                disabled={saving || selectedIds.length === 0}
+                className="flex-1 btn-primary py-2.5 rounded-lg text-white text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50">
+                {saving
+                  ? <><Spinner size={14} /> Creating…</>
+                  : <><Ico name="plus" size={14} stroke="white" /> Create Project</>}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -272,7 +457,7 @@ function CreateCaseModal({ onClose, onCreate }) {
 /* ══════════════════════════════════════════════════════
    CASES HOME
 ══════════════════════════════════════════════════════ */
-function CasesHome({ onSelectCase, userDisplayName, userEmail, onSignOut }) {
+function CasesHome({ onSelectCase, userDisplayName, userEmail }) {
   const [cases,      setCases]      = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [showModal,  setShowModal]  = useState(false);
@@ -292,9 +477,9 @@ function CasesHome({ onSelectCase, userDisplayName, userEmail, onSignOut }) {
     }
   }
 
-  async function handleCreateCase({ title, description, matter_type }) {
+  async function handleCreateCase({ title, description, matter_type, client_ids }) {
     try {
-      const newCase = await apiPost('cases.create', { user_id: getUserId(), title, description, matter_type });
+      const newCase = await apiPost('cases.create', { user_id: getUserId(), title, description, matter_type, client_ids });
       setCases(prev => [newCase, ...prev]);
     } catch (e) {
       setError('Could not create project: ' + e.message);
@@ -314,26 +499,15 @@ function CasesHome({ onSelectCase, userDisplayName, userEmail, onSignOut }) {
   const inactiveCases = cases.filter(c => c.status !== 'active');
 
   return (
-    <div className="h-screen flex flex-col animated-bg overflow-hidden" style={{ color: '#1a1a2e' }}>
+    <div className="h-full flex flex-col animated-bg overflow-hidden" style={{ color: '#1a1a2e' }}>
 
       {/* Header */}
       <header
         className="glass flex-shrink-0 px-8 py-4 flex items-center justify-between"
         style={{ borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
 
-        {/* Logo */}
-        <div className="flex items-center gap-3">
-          <div className="btn-primary w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0">
-            <Ico name="shield" size={20} stroke="white" />
-          </div>
-          <div>
-            <h1 className="font-bold text-lg leading-none" style={{ color: '#0d1b2a' }}>LegalTek AI</h1>
-            <p className="text-gray-400 text-[11px] mt-0.5">Legal Project Management</p>
-          </div>
-        </div>
-
-        {/* Greeting + sign out */}
-        <div className="hidden md:flex flex-col items-center text-center flex-1 min-w-0 px-4">
+        {/* Greeting */}
+        <div className="min-w-0">
           <p className="text-gray-800 font-medium text-sm truncate max-w-md">
             Welcome back{userDisplayName ? `, ${userDisplayName.split(' ')[0]}` : userEmail ? `, ${userEmail.split('@')[0]}` : ''}
           </p>
@@ -342,30 +516,12 @@ function CasesHome({ onSelectCase, userDisplayName, userEmail, onSignOut }) {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {onSignOut && (
-            <button
-              type="button"
-              onClick={onSignOut}
-              className="px-3 py-2 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
-              style={{ border: '1px solid rgba(13,27,42,0.12)', color: '#6b7280' }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(212,175,55,0.4)'; e.currentTarget.style.color = '#0d1b2a'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(13,27,42,0.12)'; e.currentTarget.style.color = '#6b7280'; }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" />
-              </svg>
-              Sign out
-            </button>
-          )}
-          <button
-            onClick={() => setShowModal(true)}
-            className="btn-primary px-4 py-2.5 rounded-lg text-white text-sm font-medium flex items-center gap-2">
-            <Ico name="plus" size={15} stroke="white" strokeWidth={2.5} />
-            New Project
-          </button>
-        </div>
+        <button
+          onClick={() => setShowModal(true)}
+          className="btn-primary px-4 py-2.5 rounded-lg text-white text-sm font-medium flex items-center gap-2 flex-shrink-0">
+          <Ico name="plus" size={15} stroke="white" strokeWidth={2.5} />
+          New Project
+        </button>
       </header>
 
       {/* Error banner */}

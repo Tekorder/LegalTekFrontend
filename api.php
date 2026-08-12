@@ -80,6 +80,28 @@ $routes = [
     'cases.members'        => 'cases_members',
     'cases.invite'         => 'cases_invite',
     'cases.remove_member'  => 'cases_remove_member',
+    // Clients
+    'clients.list'         => 'clients_list',
+    'clients.create'       => 'clients_create',
+    'clients.update'       => 'clients_update',
+    'clients.delete'       => 'clients_delete',
+    // Case <-> Client links
+    'cases.clients'        => 'cases_clients',
+    'cases.add_client'     => 'cases_add_client',
+    'cases.remove_client'  => 'cases_remove_client',
+    // Invoices (billing)
+    'invoices.list'          => 'invoices_list',
+    'invoices.get'            => 'invoices_get',
+    'invoices.create'         => 'invoices_create',
+    'invoices.update'         => 'invoices_update',
+    'invoices.update_status'  => 'invoices_update_status',
+    'invoices.delete'         => 'invoices_delete',
+    // Hearings
+    'hearings.list'   => 'hearings_list',
+    'hearings.get'    => 'hearings_get',
+    'hearings.create' => 'hearings_create',
+    'hearings.update' => 'hearings_update',
+    'hearings.delete' => 'hearings_delete',
     // Users
     'users.list'              => 'users_list',
     'users.find_by_email'     => 'users_find_by_email',
@@ -142,7 +164,8 @@ function cases_list(PDO $pdo)
             k.updated_at,
             COUNT(DISTINCT c.id)  AS conversation_count,
             COUNT(DISTINCT d.id)  AS document_count,
-            COUNT(DISTINCT cm.user_id) AS member_count
+            COUNT(DISTINCT cm.user_id) AS member_count,
+            (SELECT COALESCE(SUM(total), 0) FROM invoices WHERE case_id = k.id AND status IN ('sent','paid')) AS billed_total
         FROM `cases` k
         LEFT JOIN conversations  c  ON c.case_id  = k.id
         LEFT JOIN documents      d  ON d.case_id  = k.id
@@ -206,7 +229,8 @@ function cases_ensure_personal_case(PDO $pdo, int $user_id): array
 
 /**
  * POST api.php?action=cases.create
- * Body JSON: { "user_id": 1, "title": "Smith vs Jones", "description": "...", "matter_type": "litigation" }
+ * Body JSON: { "user_id": 1, "title": "Smith vs Jones", "description": "...", "matter_type": "litigation", "client_ids": [1,2] }
+ * client_ids is optional — a project can be created without any client attached.
  */
 function cases_create(PDO $pdo)
 {
@@ -216,6 +240,7 @@ function cases_create(PDO $pdo)
     $description = trim($b['description'] ?? '');
     $matter_type = in_array($b['matter_type'] ?? '', ['contract','litigation','advisory','corporate','analysis_reporting','other'])
                    ? $b['matter_type'] : 'other';
+    $client_ids  = array_filter(array_map('intval', $b['client_ids'] ?? []));
 
     if (!$title) json_err('title is required');
 
@@ -230,6 +255,17 @@ function cases_create(PDO $pdo)
     $pdo->prepare("INSERT IGNORE INTO case_members (case_id, user_id, role) VALUES (?, ?, 'owner')")
         ->execute([$id, $user_id]);
 
+    // Attach selected clients (only ones owned by this user)
+    if ($client_ids) {
+        $stmt = $pdo->prepare("
+            INSERT IGNORE INTO case_clients (case_id, client_id)
+            SELECT ?, id FROM clients WHERE id = ? AND user_id = ?
+        ");
+        foreach ($client_ids as $client_id) {
+            $stmt->execute([$id, $client_id, $user_id]);
+        }
+    }
+
     json_ok([
         'id'                 => $id,
         'user_id'            => $user_id,
@@ -239,6 +275,7 @@ function cases_create(PDO $pdo)
         'status'             => 'active',
         'conversation_count' => 0,
         'document_count'     => 0,
+        'billed_total'       => 0,
         'created_at'         => date('Y-m-d H:i:s'),
         'updated_at'         => date('Y-m-d H:i:s'),
     ]);
@@ -534,6 +571,525 @@ function cases_delete(PDO $pdo)
     $pdo->prepare("DELETE FROM `cases` WHERE id = ?")->execute([$case_id]);
 
     json_ok(['deleted_id' => $case_id]);
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  CLIENTS
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * GET api.php?action=clients.list&user_id=1
+ * Returns all clients for the user.
+ */
+function clients_list(PDO $pdo)
+{
+    $user_id = (int)($_GET['user_id'] ?? 1);
+
+    $stmt = $pdo->prepare("
+        SELECT id, user_id, name, email, phone, company, notes, created_at, updated_at
+        FROM `clients`
+        WHERE user_id = ?
+        ORDER BY name ASC
+    ");
+    $stmt->execute([$user_id]);
+
+    json_ok($stmt->fetchAll());
+}
+
+/**
+ * POST api.php?action=clients.create
+ * Body JSON: { "user_id": 1, "name": "Acme Corp", "email": "...", "phone": "...", "company": "...", "notes": "..." }
+ */
+function clients_create(PDO $pdo)
+{
+    $b       = body();
+    $user_id = (int)($b['user_id'] ?? 1);
+    $name    = trim($b['name'] ?? '');
+    $email   = trim($b['email'] ?? '');
+    $phone   = trim($b['phone'] ?? '');
+    $company = trim($b['company'] ?? '');
+    $notes   = trim($b['notes'] ?? '');
+
+    if (!$name) json_err('name is required');
+
+    $stmt = $pdo->prepare(
+        "INSERT INTO `clients` (user_id, name, email, phone, company, notes) VALUES (?, ?, ?, ?, ?, ?)"
+    );
+    $stmt->execute([$user_id, $name, $email ?: null, $phone ?: null, $company ?: null, $notes ?: null]);
+
+    $id = (int)$pdo->lastInsertId();
+
+    json_ok([
+        'id'         => $id,
+        'user_id'    => $user_id,
+        'name'       => $name,
+        'email'      => $email ?: null,
+        'phone'      => $phone ?: null,
+        'company'    => $company ?: null,
+        'notes'      => $notes ?: null,
+        'created_at' => date('Y-m-d H:i:s'),
+        'updated_at' => date('Y-m-d H:i:s'),
+    ]);
+}
+
+/**
+ * POST api.php?action=clients.update
+ * Body JSON: { "client_id": 1, "name": "...", "email": "...", "phone": "...", "company": "...", "notes": "..." }
+ */
+function clients_update(PDO $pdo)
+{
+    $b         = body();
+    $client_id = (int)($b['client_id'] ?? 0);
+    $name      = trim($b['name'] ?? '');
+    $email     = trim($b['email'] ?? '');
+    $phone     = trim($b['phone'] ?? '');
+    $company   = trim($b['company'] ?? '');
+    $notes     = trim($b['notes'] ?? '');
+
+    if (!$client_id) json_err('client_id is required');
+    if (!$name)      json_err('name is required');
+
+    $pdo->prepare("
+        UPDATE `clients`
+        SET name       = ?,
+            email      = ?,
+            phone      = ?,
+            company    = ?,
+            notes      = ?,
+            updated_at = NOW()
+        WHERE id = ?
+    ")->execute([$name, $email ?: null, $phone ?: null, $company ?: null, $notes ?: null, $client_id]);
+
+    json_ok(['id' => $client_id, 'name' => $name]);
+}
+
+/**
+ * POST api.php?action=clients.delete
+ * Body JSON: { "client_id": 1 }
+ */
+function clients_delete(PDO $pdo)
+{
+    $b         = body();
+    $client_id = (int)($b['client_id'] ?? 0);
+    if (!$client_id) json_err('client_id is required');
+
+    $pdo->prepare("DELETE FROM `clients` WHERE id = ?")->execute([$client_id]);
+
+    json_ok(['deleted_id' => $client_id]);
+}
+
+/**
+ * GET api.php?action=cases.clients&case_id=1
+ * Returns the clients attached to a project.
+ */
+function cases_clients(PDO $pdo)
+{
+    $case_id = (int)($_GET['case_id'] ?? 0);
+    if (!$case_id) json_err('case_id is required');
+
+    $stmt = $pdo->prepare("
+        SELECT cl.id, cl.name, cl.email, cl.phone, cl.company, cl.notes
+        FROM case_clients cc
+        JOIN clients cl ON cl.id = cc.client_id
+        WHERE cc.case_id = ?
+        ORDER BY cl.name ASC
+    ");
+    $stmt->execute([$case_id]);
+
+    json_ok($stmt->fetchAll());
+}
+
+/**
+ * POST api.php?action=cases.add_client
+ * Body JSON: { "case_id": 1, "client_id": 2 }
+ */
+function cases_add_client(PDO $pdo)
+{
+    $b         = body();
+    $case_id   = (int)($b['case_id'] ?? 0);
+    $client_id = (int)($b['client_id'] ?? 0);
+
+    if (!$case_id)   json_err('case_id is required');
+    if (!$client_id) json_err('client_id is required');
+
+    $pdo->prepare("INSERT IGNORE INTO case_clients (case_id, client_id) VALUES (?, ?)")
+        ->execute([$case_id, $client_id]);
+
+    $stmt = $pdo->prepare("SELECT id, name, email, phone, company, notes FROM clients WHERE id = ?");
+    $stmt->execute([$client_id]);
+
+    json_ok($stmt->fetch());
+}
+
+/**
+ * POST api.php?action=cases.remove_client
+ * Body JSON: { "case_id": 1, "client_id": 2 }
+ */
+function cases_remove_client(PDO $pdo)
+{
+    $b         = body();
+    $case_id   = (int)($b['case_id'] ?? 0);
+    $client_id = (int)($b['client_id'] ?? 0);
+
+    if (!$case_id)   json_err('case_id is required');
+    if (!$client_id) json_err('client_id is required');
+
+    $pdo->prepare("DELETE FROM case_clients WHERE case_id = ? AND client_id = ?")
+        ->execute([$case_id, $client_id]);
+
+    json_ok(['removed' => true, 'client_id' => $client_id]);
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  INVOICES (billing)
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * GET api.php?action=invoices.list&case_id=1
+ * Returns invoice headers for a project (no line items).
+ */
+function invoices_list(PDO $pdo)
+{
+    $case_id = (int)($_GET['case_id'] ?? 0);
+    if (!$case_id) json_err('case_id is required');
+
+    $stmt = $pdo->prepare("
+        SELECT i.id, i.case_id, i.client_id, i.invoice_number, i.status,
+               i.issue_date, i.due_date, i.notes, i.total, i.created_at, i.updated_at,
+               cl.name AS client_name
+        FROM invoices i
+        LEFT JOIN clients cl ON cl.id = i.client_id
+        WHERE i.case_id = ?
+        ORDER BY i.issue_date DESC, i.id DESC
+    ");
+    $stmt->execute([$case_id]);
+
+    json_ok($stmt->fetchAll());
+}
+
+/**
+ * GET api.php?action=invoices.get&invoice_id=1
+ * Returns invoice header + line items.
+ */
+function invoices_get(PDO $pdo)
+{
+    $invoice_id = (int)($_GET['invoice_id'] ?? 0);
+    if (!$invoice_id) json_err('invoice_id is required');
+
+    $stmt = $pdo->prepare("
+        SELECT i.id, i.case_id, i.client_id, i.invoice_number, i.status,
+               i.issue_date, i.due_date, i.notes, i.total, i.created_at, i.updated_at,
+               cl.name AS client_name
+        FROM invoices i
+        LEFT JOIN clients cl ON cl.id = i.client_id
+        WHERE i.id = ?
+    ");
+    $stmt->execute([$invoice_id]);
+    $invoice = $stmt->fetch();
+    if (!$invoice) json_err('Invoice not found', 404);
+
+    $stmt = $pdo->prepare("
+        SELECT id, description, quantity, unit_price, amount, sort_order
+        FROM invoice_items
+        WHERE invoice_id = ?
+        ORDER BY sort_order ASC, id ASC
+    ");
+    $stmt->execute([$invoice_id]);
+    $invoice['items'] = $stmt->fetchAll();
+
+    json_ok($invoice);
+}
+
+/** Sanitize + compute amount for each line item, dropping empty rows */
+function invoices_clean_items(array $items): array
+{
+    $clean = [];
+    foreach ($items as $it) {
+        $description = trim($it['description'] ?? '');
+        if (!$description) continue;
+        $quantity   = (float)($it['quantity']   ?? 1);
+        $unit_price = (float)($it['unit_price'] ?? 0);
+        $clean[] = [
+            'description' => $description,
+            'quantity'    => $quantity,
+            'unit_price'  => $unit_price,
+            'amount'      => round($quantity * $unit_price, 2),
+        ];
+    }
+    return $clean;
+}
+
+/**
+ * POST api.php?action=invoices.create
+ * Body JSON: { case_id, client_id?, invoice_number, status?, issue_date?, due_date?, notes?,
+ *              items: [{description, quantity, unit_price}] }
+ */
+function invoices_create(PDO $pdo)
+{
+    $b              = body();
+    $case_id        = (int)($b['case_id'] ?? 0);
+    $client_id      = !empty($b['client_id']) ? (int)$b['client_id'] : null;
+    $invoice_number = trim($b['invoice_number'] ?? '');
+    $status         = in_array($b['status'] ?? '', ['draft','sent','paid']) ? $b['status'] : 'draft';
+    $issue_date     = trim($b['issue_date'] ?? '') ?: date('Y-m-d');
+    $due_date       = trim($b['due_date'] ?? '') ?: null;
+    $notes          = trim($b['notes'] ?? '');
+    $items          = invoices_clean_items($b['items'] ?? []);
+
+    if (!$case_id)        json_err('case_id is required');
+    if (!$invoice_number) json_err('invoice_number is required');
+
+    $total = round(array_sum(array_column($items, 'amount')), 2);
+
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO invoices (case_id, client_id, invoice_number, status, issue_date, due_date, notes, total)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([$case_id, $client_id, $invoice_number, $status, $issue_date, $due_date, $notes ?: null, $total]);
+        $invoice_id = (int)$pdo->lastInsertId();
+
+        $itemStmt = $pdo->prepare("
+            INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, amount, sort_order)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ");
+        foreach ($items as $i => $item) {
+            $itemStmt->execute([$invoice_id, $item['description'], $item['quantity'], $item['unit_price'], $item['amount'], $i]);
+        }
+
+        $pdo->commit();
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        json_err('Could not create invoice: ' . $e->getMessage(), 500);
+    }
+
+    json_ok(['id' => $invoice_id, 'total' => $total]);
+}
+
+/**
+ * POST api.php?action=invoices.update
+ * Body JSON: { invoice_id, client_id?, invoice_number, status?, issue_date?, due_date?, notes?, items: [...] }
+ * Replaces all line items with the ones provided.
+ */
+function invoices_update(PDO $pdo)
+{
+    $b              = body();
+    $invoice_id     = (int)($b['invoice_id'] ?? 0);
+    $client_id      = !empty($b['client_id']) ? (int)$b['client_id'] : null;
+    $invoice_number = trim($b['invoice_number'] ?? '');
+    $status         = in_array($b['status'] ?? '', ['draft','sent','paid']) ? $b['status'] : 'draft';
+    $issue_date     = trim($b['issue_date'] ?? '') ?: date('Y-m-d');
+    $due_date       = trim($b['due_date'] ?? '') ?: null;
+    $notes          = trim($b['notes'] ?? '');
+    $items          = invoices_clean_items($b['items'] ?? []);
+
+    if (!$invoice_id)     json_err('invoice_id is required');
+    if (!$invoice_number) json_err('invoice_number is required');
+
+    $total = round(array_sum(array_column($items, 'amount')), 2);
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare("
+            UPDATE invoices
+            SET client_id = ?, invoice_number = ?, status = ?, issue_date = ?, due_date = ?, notes = ?, total = ?, updated_at = NOW()
+            WHERE id = ?
+        ")->execute([$client_id, $invoice_number, $status, $issue_date, $due_date, $notes ?: null, $total, $invoice_id]);
+
+        $pdo->prepare("DELETE FROM invoice_items WHERE invoice_id = ?")->execute([$invoice_id]);
+
+        $itemStmt = $pdo->prepare("
+            INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, amount, sort_order)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ");
+        foreach ($items as $i => $item) {
+            $itemStmt->execute([$invoice_id, $item['description'], $item['quantity'], $item['unit_price'], $item['amount'], $i]);
+        }
+
+        $pdo->commit();
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        json_err('Could not update invoice: ' . $e->getMessage(), 500);
+    }
+
+    json_ok(['id' => $invoice_id, 'total' => $total]);
+}
+
+/**
+ * POST api.php?action=invoices.update_status
+ * Body JSON: { invoice_id, status }
+ * Quick status change (draft -> sent -> paid) without resending line items.
+ */
+function invoices_update_status(PDO $pdo)
+{
+    $b          = body();
+    $invoice_id = (int)($b['invoice_id'] ?? 0);
+    $status     = $b['status'] ?? '';
+
+    if (!$invoice_id) json_err('invoice_id is required');
+    if (!in_array($status, ['draft','sent','paid'])) json_err('Invalid status');
+
+    $pdo->prepare("UPDATE invoices SET status = ?, updated_at = NOW() WHERE id = ?")
+        ->execute([$status, $invoice_id]);
+
+    json_ok(['id' => $invoice_id, 'status' => $status]);
+}
+
+/**
+ * POST api.php?action=invoices.delete
+ * Body JSON: { invoice_id }
+ */
+function invoices_delete(PDO $pdo)
+{
+    $b          = body();
+    $invoice_id = (int)($b['invoice_id'] ?? 0);
+    if (!$invoice_id) json_err('invoice_id is required');
+
+    $pdo->prepare("DELETE FROM invoices WHERE id = ?")->execute([$invoice_id]);
+
+    json_ok(['deleted_id' => $invoice_id]);
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  HEARINGS (calendar, notes, outcome, documents studied)
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * GET api.php?action=hearings.list&case_id=1
+ * Returns all hearings for a project (for the calendar view), with document counts.
+ */
+function hearings_list(PDO $pdo)
+{
+    $case_id = (int)($_GET['case_id'] ?? 0);
+    if (!$case_id) json_err('case_id is required');
+
+    $stmt = $pdo->prepare("
+        SELECT h.id, h.case_id, h.title, h.hearing_date, h.location, h.status,
+               h.created_at, h.updated_at,
+               COUNT(d.id) AS document_count
+        FROM hearings h
+        LEFT JOIN documents d ON d.hearing_id = h.id
+        WHERE h.case_id = ?
+        GROUP BY h.id
+        ORDER BY h.hearing_date ASC
+    ");
+    $stmt->execute([$case_id]);
+
+    json_ok($stmt->fetchAll());
+}
+
+/**
+ * GET api.php?action=hearings.get&hearing_id=1
+ * Returns hearing header + notes + outcome + the documents studied for it.
+ */
+function hearings_get(PDO $pdo)
+{
+    $hearing_id = (int)($_GET['hearing_id'] ?? 0);
+    if (!$hearing_id) json_err('hearing_id is required');
+
+    $stmt = $pdo->prepare("SELECT * FROM hearings WHERE id = ?");
+    $stmt->execute([$hearing_id]);
+    $hearing = $stmt->fetch();
+    if (!$hearing) json_err('Hearing not found', 404);
+
+    $stmt = $pdo->prepare("
+        SELECT id, original_name, file_size, file_type, status, created_at,
+               CHAR_LENGTH(extracted_text) AS char_count
+        FROM documents
+        WHERE hearing_id = ?
+        ORDER BY created_at DESC
+    ");
+    $stmt->execute([$hearing_id]);
+    $hearing['documents'] = $stmt->fetchAll();
+
+    json_ok($hearing);
+}
+
+/**
+ * POST api.php?action=hearings.create
+ * Body JSON: { case_id, title, hearing_date, location?, notes?, status? }
+ */
+function hearings_create(PDO $pdo)
+{
+    $b            = body();
+    $case_id      = (int)($b['case_id'] ?? 0);
+    $title        = trim($b['title'] ?? '');
+    $hearing_date = trim($b['hearing_date'] ?? '');
+    $location     = trim($b['location'] ?? '');
+    $notes        = trim($b['notes'] ?? '');
+    $status       = in_array($b['status'] ?? '', ['scheduled','completed','cancelled']) ? $b['status'] : 'scheduled';
+
+    if (!$case_id)      json_err('case_id is required');
+    if (!$title)        json_err('title is required');
+    if (!$hearing_date) json_err('hearing_date is required');
+
+    $stmt = $pdo->prepare("
+        INSERT INTO hearings (case_id, title, hearing_date, location, notes, status)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ");
+    $stmt->execute([$case_id, $title, $hearing_date, $location ?: null, $notes ?: null, $status]);
+
+    $id = (int)$pdo->lastInsertId();
+
+    json_ok([
+        'id'            => $id,
+        'case_id'       => $case_id,
+        'title'         => $title,
+        'hearing_date'  => $hearing_date,
+        'location'      => $location ?: null,
+        'status'        => $status,
+        'document_count'=> 0,
+        'created_at'    => date('Y-m-d H:i:s'),
+        'updated_at'    => date('Y-m-d H:i:s'),
+    ]);
+}
+
+/**
+ * POST api.php?action=hearings.update
+ * Body JSON: { hearing_id, title, hearing_date, location?, notes?, outcome?, status? }
+ */
+function hearings_update(PDO $pdo)
+{
+    $b            = body();
+    $hearing_id   = (int)($b['hearing_id'] ?? 0);
+    $title        = trim($b['title'] ?? '');
+    $hearing_date = trim($b['hearing_date'] ?? '');
+    $location     = trim($b['location'] ?? '');
+    $notes        = trim($b['notes'] ?? '');
+    $outcome      = trim($b['outcome'] ?? '');
+    $status       = in_array($b['status'] ?? '', ['scheduled','completed','cancelled']) ? $b['status'] : 'scheduled';
+
+    if (!$hearing_id)   json_err('hearing_id is required');
+    if (!$title)        json_err('title is required');
+    if (!$hearing_date) json_err('hearing_date is required');
+
+    $pdo->prepare("
+        UPDATE hearings
+        SET title = ?, hearing_date = ?, location = ?, notes = ?, outcome = ?, status = ?, updated_at = NOW()
+        WHERE id = ?
+    ")->execute([$title, $hearing_date, $location ?: null, $notes ?: null, $outcome ?: null, $status, $hearing_id]);
+
+    json_ok(['id' => $hearing_id, 'title' => $title]);
+}
+
+/**
+ * POST api.php?action=hearings.delete
+ * Body JSON: { hearing_id }
+ * Documents studied for this hearing are kept (hearing_id is set to NULL, files are not removed).
+ */
+function hearings_delete(PDO $pdo)
+{
+    $b          = body();
+    $hearing_id = (int)($b['hearing_id'] ?? 0);
+    if (!$hearing_id) json_err('hearing_id is required');
+
+    $pdo->prepare("DELETE FROM hearings WHERE id = ?")->execute([$hearing_id]);
+
+    json_ok(['deleted_id' => $hearing_id]);
 }
 
 
@@ -1216,10 +1772,11 @@ function documents_upload(PDO $pdo)
     }
 
     $file    = $_FILES['file'];
-    $conv_id   = ($_POST['conversation_id'] ?? '') !== '' ? (int)$_POST['conversation_id'] : null;
-    $case_id   = ($_POST['case_id']         ?? '') !== '' ? (int)$_POST['case_id']          : null;
-    $folder_id = ($_POST['folder_id']       ?? '') !== '' ? (int)$_POST['folder_id']        : null;
-    $user_id   = (int)($_POST['user_id'] ?? 1);
+    $conv_id    = ($_POST['conversation_id'] ?? '') !== '' ? (int)$_POST['conversation_id'] : null;
+    $case_id    = ($_POST['case_id']         ?? '') !== '' ? (int)$_POST['case_id']          : null;
+    $hearing_id = ($_POST['hearing_id']      ?? '') !== '' ? (int)$_POST['hearing_id']       : null;
+    $folder_id  = ($_POST['folder_id']       ?? '') !== '' ? (int)$_POST['folder_id']        : null;
+    $user_id    = (int)($_POST['user_id'] ?? 1);
 
     // Validate upload error
     if ($file['error'] !== UPLOAD_ERR_OK) {
@@ -1257,12 +1814,13 @@ function documents_upload(PDO $pdo)
 
     $stmt = $pdo->prepare("
         INSERT INTO documents
-            (case_id, folder_id, conversation_id, user_id, original_name, stored_name, file_path,
+            (case_id, hearing_id, folder_id, conversation_id, user_id, original_name, stored_name, file_path,
              file_size, file_type, status, extracted_text)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
     $stmt->execute([
         $case_id,
+        $hearing_id,
         $folder_id,
         $conv_id,
         $user_id,

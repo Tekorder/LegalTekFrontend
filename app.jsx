@@ -14,6 +14,9 @@ const {
   Message, TypingIndicator, ChatInput,
   DocsPanel,
   AnalyzePanel,
+  ClientsPanel,
+  BillingPanel,
+  HearingsPanel,
   TeamPanel,
   InviteToChatModal,
   DocumentEditor,
@@ -382,6 +385,15 @@ function App({ user, initialCase, onBackToCases }) {
       )}
       {view === 'analyze' && (
         <AnalyzePanel caseId={activeCase.id} onEditDoc={handleEditDoc} />
+      )}
+      {view === 'clients' && (
+        <ClientsPanel caseId={activeCase.id} />
+      )}
+      {view === 'billing' && (
+        <BillingPanel caseId={activeCase.id} />
+      )}
+      {view === 'hearings' && (
+        <HearingsPanel caseId={activeCase.id} />
       )}
 
       {/* ── CHAT VIEW ── */}
@@ -756,6 +768,7 @@ function Root() {
   const [personalCase, setPersonalCase] = useState(null);
   const [workspaceError, setWorkspaceError] = useState(null);
   const [selectedCase, setSelectedCase] = useState(null);
+  const [topView, setTopView] = useState('cases'); // 'cases' | 'clients'
 
   useEffect(() => {
     const auth = window.firebaseAuth;
@@ -850,12 +863,31 @@ function Root() {
 
   if (!selectedCase) {
     return (
-      <CasesHome
-        onSelectCase={setSelectedCase}
-        userDisplayName={user.displayName}
-        userEmail={user.email}
-        onSignOut={() => window.firebaseAuth?.signOut()}
-      />
+      <div className="h-screen w-full flex overflow-hidden">
+        <HomeSidebar
+          topView={topView}
+          onSwitchView={setTopView}
+          userDisplayName={user.displayName}
+          userEmail={user.email}
+          onSignOut={() => window.firebaseAuth?.signOut()}
+        />
+        <div className="flex-1 overflow-hidden">
+          {topView === 'clients' ? (
+            <ClientsHome
+              userDisplayName={user.displayName}
+              userEmail={user.email}
+            />
+          ) : topView === 'account' ? (
+            <AccountHome />
+          ) : (
+            <CasesHome
+              onSelectCase={setSelectedCase}
+              userDisplayName={user.displayName}
+              userEmail={user.email}
+            />
+          )}
+        </div>
+      </div>
     );
   }
 
