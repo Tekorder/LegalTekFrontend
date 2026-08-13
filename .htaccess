@@ -13,3 +13,16 @@
 <Files "env.php">
     Require all denied
 </Files>
+
+# ═══════════════════════════════════════════════════════════
+# Never serve stale source. These files are transpiled in the browser at load
+# time, and Apache sends no Cache-Control for them by default — so browsers
+# fall back to heuristic caching and can keep running an old copy after an
+# edit. A frontend one version behind the API produces confusing runtime
+# errors instead of an obvious "reload me".
+# ═══════════════════════════════════════════════════════════
+<IfModule mod_headers.c>
+    <FilesMatch "\.(jsx|css)$">
+        Header set Cache-Control "no-cache, must-revalidate"
+    </FilesMatch>
+</IfModule>

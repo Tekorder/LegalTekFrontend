@@ -22,6 +22,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
+// ── This endpoint answers JSON, always ────────────────────
+// An uncaught exception or PHP warning otherwise reaches the frontend as an
+// HTML error page, where res.json() dies on "Unexpected token '<'" — which
+// tells the user nothing about what actually broke.
+ini_set('html_errors', '0');
+
+set_exception_handler(function (Throwable $e) {
+    error_log('[LegalTek] uncaught ' . get_class($e) . ': ' . $e->getMessage()
+              . ' @ ' . $e->getFile() . ':' . $e->getLine());
+    json_err('Server error: ' . $e->getMessage(), 500);
+});
+
+register_shutdown_function(function () {
+    $last = error_get_last();
+    if ($last && ($last['type'] & (E_ERROR | E_PARSE | E_CORE_ERROR | E_COMPILE_ERROR))) {
+        json_err('Server error: ' . $last['message'], 500);
+    }
+});
+
 // ── DB Connection ─────────────────────────────────────────
 try {
     $pdo = new PDO(
@@ -37,15 +56,39 @@ try {
     json_err('Database connection failed: ' . $e->getMessage(), 500);
 }
 
+// Pin the session zone so CURRENT_TIMESTAMP defaults land in APP_TIMEZONE,
+// same as PHP's date(). Numeric offset, not the zone name: named zones need
+// the mysql.time_zone tables, which XAMPP ships empty.
+$pdo->exec("SET time_zone = '" .
+    (new DateTime('now', new DateTimeZone(APP_TIMEZONE)))->format('P') . "'");
+
 // ── Helpers ───────────────────────────────────────────────
+/**
+ * Drop anything already printed into the output buffer (a stray warning, a
+ * debug echo) so it can't prefix the JSON body and make it unparseable.
+ * The text goes to the error log instead of being lost.
+ */
+function json_drop_stray_output(): void
+{
+    $stray = '';
+    while (ob_get_level() > 0) {
+        $stray .= (string) ob_get_clean();
+    }
+    if (trim($stray) !== '') {
+        error_log('[LegalTek] discarded stray output before JSON: ' . trim($stray));
+    }
+}
+
 function json_ok($data = [])
 {
+    json_drop_stray_output();
     echo json_encode(['success' => true, 'data' => $data], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
 function json_err(string $msg, int $code = 400)
 {
+    json_drop_stray_output();
     if (!headers_sent()) {
         header('Content-Type: application/json; charset=utf-8', true);
     }
@@ -68,6 +111,11 @@ if ($action === 'documents.export_docx') {
 }
 
 header('Content-Type: application/json; charset=utf-8');
+
+// Catch anything a handler prints by accident, so json_ok()/json_err() can log
+// and discard it instead of shipping a corrupted body. (Started after the DOCX
+// branch above, which writes binary straight to the client.)
+ob_start();
 
 // ── Router ────────────────────────────────────────────────
 
@@ -1310,6 +1358,34 @@ function conversations_delete(PDO $pdo)
 // ═══════════════════════════════════════════════════════════
 
 /**
+ * Is this conversation still there? A false answer mid-request means the user
+ * deleted the chat and everything still in flight for it should be abandoned.
+ */
+function conversation_exists(PDO $pdo, int $conv_id): bool
+{
+    $stmt = $pdo->prepare("SELECT 1 FROM conversations WHERE id = ?");
+    $stmt->execute([$conv_id]);
+    $found = $stmt->fetchColumn() !== false;
+    $stmt->closeCursor();
+    return $found;
+}
+
+/**
+ * The chat was deleted while we were working on it. That is a normal outcome,
+ * not an error — the frontend just drops the reply.
+ */
+function json_cancelled(int $conv_id)
+{
+    error_log("[LegalTek] messages.send abandoned — conversation {$conv_id} deleted mid-request");
+    json_ok([
+        'cancelled'       => true,
+        'conversation_id' => $conv_id,
+        'user_message'    => null,
+        'ai_message'      => null,
+    ]);
+}
+
+/**
  * GET api.php?action=messages.list&conversation_id=1
  */
 function messages_list(PDO $pdo)
@@ -1353,6 +1429,13 @@ function messages_send(PDO $pdo)
 
     if (!$conv_id) json_err('conversation_id is required');
     if (!$content) json_err('content is required');
+
+    // This conversation can vanish at any point below — the user may delete the
+    // chat while the model is still writing. Every stage re-checks before
+    // spending more time, tokens or writes on an answer that has no home.
+    if (!conversation_exists($pdo, $conv_id)) {
+        json_err('This conversation no longer exists', 404);
+    }
 
     // 1. Save user message
     $stmt = $pdo->prepare("
@@ -1399,6 +1482,8 @@ function messages_send(PDO $pdo)
     $doc_research     = search_conversation_docs($pdo, $conv_id, $content);
     $external_context = $doc_research['context'];
 
+    if (!conversation_exists($pdo, $conv_id)) json_cancelled($conv_id);
+
     // ── On request: Court Listener external case search ────
     $cl_sources = [];
     $cl_meta    = null;
@@ -1420,7 +1505,17 @@ function messages_send(PDO $pdo)
         }
     }
 
+    // The CourtListener pipeline above also spends model calls — check before it
+    // and again before the main generation starts.
+    if (!conversation_exists($pdo, $conv_id)) json_cancelled($conv_id);
+
     $ai = openai_chat($pdo, $conv_id, $content, $case_id, $external_context);
+
+    // Generation hung up on a deleted chat, or the chat went away during the
+    // last poll interval — either way there is nothing left to save.
+    if (!empty($ai['cancelled']) || !conversation_exists($pdo, $conv_id)) {
+        json_cancelled($conv_id);
+    }
 
     // 4. Save assistant response
     $stmt2 = $pdo->prepare("
@@ -2309,6 +2404,106 @@ function openai_chat(PDO $pdo, int $conv_id, string $user_question = '', ?int $c
     return ollama_chat($pdo, $conv_id, $user_question, $case_id, $external_context);
 }
 
+/**
+ * POST to Ollama and reassemble a streamed reply.
+ *
+ * stream:true is not about progressive UI here — it is the only way to hang up
+ * early. Returning 0 from the write callback aborts the transfer, and Ollama
+ * cancels generation as soon as its client disconnects (measured: after an
+ * aborted request the model is immediately free, instead of making the next
+ * request queue behind a generation still running). $should_cancel is polled
+ * every OLLAMA_CANCEL_POLL seconds, so an answer nobody will read stops
+ * costing tokens mid-sentence rather than running to completion.
+ *
+ * @param  callable|null $should_cancel Returns true when the work is no longer wanted.
+ * @return array{content:string,model:string,tokens:int,cancelled:bool,error:?string}
+ */
+function ollama_stream_chat(array $messages, ?callable $should_cancel = null, ?int $timeout = null): array
+{
+    $out = [
+        'content'   => '',
+        'model'     => OLLAMA_MODEL,
+        'tokens'    => 0,
+        'cancelled' => false,
+        'error'     => null,
+    ];
+
+    $buffer     = '';
+    $api_error  = null;
+    $next_check = microtime(true) + OLLAMA_CANCEL_POLL;
+
+    $ch = curl_init(OLLAMA_CHAT_URL);
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => json_encode([
+            'model'    => OLLAMA_MODEL,
+            'messages' => $messages,
+            'stream'   => true,
+        ]),
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_TIMEOUT        => $timeout ?? OLLAMA_TIMEOUT,
+        CURLOPT_WRITEFUNCTION  => function ($ch, $chunk) use (
+            &$out, &$buffer, &$api_error, &$next_check, $should_cancel
+        ) {
+            if ($should_cancel !== null && microtime(true) >= $next_check) {
+                $next_check = microtime(true) + OLLAMA_CANCEL_POLL;
+                if ($should_cancel()) {
+                    $out['cancelled'] = true;
+                    return 0;   // hang up — Ollama stops generating
+                }
+            }
+
+            // NDJSON: one JSON object per line, a partial line may span chunks
+            $buffer .= $chunk;
+            while (($nl = strpos($buffer, "\n")) !== false) {
+                $line   = trim(substr($buffer, 0, $nl));
+                $buffer = substr($buffer, $nl + 1);
+                if ($line === '') continue;
+
+                $obj = json_decode($line, true);
+                if (!is_array($obj)) continue;
+
+                if (isset($obj['error']))              $api_error       = (string) $obj['error'];
+                if (isset($obj['message']['content'])) $out['content'] .= $obj['message']['content'];
+                if (!empty($obj['model']))             $out['model']    = $obj['model'];
+                if (!empty($obj['done'])) {
+                    $out['tokens'] = (int)($obj['eval_count'] ?? 0)
+                                   + (int)($obj['prompt_eval_count'] ?? 0);
+                }
+            }
+            return strlen($chunk);
+        },
+    ]);
+
+    $ok    = curl_exec($ch);
+    $errno = curl_errno($ch);
+    $err   = curl_error($ch);
+    $code  = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    // Our own hangup, not a failure — reported before any error checks
+    if ($out['cancelled']) return $out;
+
+    if ($ok === false) {
+        $out['error'] = $errno === 28   // CURLE_OPERATION_TIMEDOUT
+            ? 'Ollama timed out — try a smaller model or raise OLLAMA_TIMEOUT in .env'
+            : "Ollama unreachable: {$err}";
+        return $out;
+    }
+    if ($api_error !== null) {
+        $out['error'] = "Ollama error: {$api_error}";
+        return $out;
+    }
+    if ($code >= 400) {
+        $out['error'] = "Ollama error (HTTP {$code})";
+        return $out;
+    }
+    if ($out['content'] === '') $out['content'] = '(empty response)';
+
+    return $out;
+}
+
 function ollama_chat(PDO $pdo, int $conv_id, string $user_question = '', ?int $case_id = null, string $external_context = ''): array
 {
     // Get user_id from the conversation
@@ -2505,45 +2700,28 @@ PROMPT;
     @set_time_limit(OLLAMA_TIMEOUT + 60);
     @ini_set('max_execution_time', (string)(OLLAMA_TIMEOUT + 60));
 
-    $payload = json_encode([
-        'model'    => OLLAMA_MODEL,
-        'messages' => $messages,
-        'stream'   => false,
-    ]);
+    // Abandon the answer if the user deletes the chat while it is being written
+    $still_wanted = $pdo->prepare("SELECT 1 FROM conversations WHERE id = ?");
+    $reply = ollama_stream_chat($messages, function () use ($still_wanted, $conv_id) {
+        $still_wanted->execute([$conv_id]);
+        $exists = $still_wanted->fetchColumn() !== false;
+        $still_wanted->closeCursor();
+        return !$exists;
+    });
 
-    $ch = curl_init(OLLAMA_CHAT_URL);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => $payload,
-        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
-        CURLOPT_CONNECTTIMEOUT => 10,
-        CURLOPT_TIMEOUT        => OLLAMA_TIMEOUT,
-    ]);
-
-    $response  = curl_exec($ch);
-    $curl_err  = curl_error($ch);
-    $curl_errno = curl_errno($ch);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($response === false) {
-        $msg = $curl_errno === 28
-            ? 'Ollama timed out — try a smaller model or raise OLLAMA_TIMEOUT in config.php'
-            : "Ollama unreachable: {$curl_err}";
-        return ['content' => "⚠️ {$msg}", 'model' => OLLAMA_MODEL, 'tokens' => 0];
+    if ($reply['cancelled']) {
+        error_log("[LegalTek] generation hung up mid-answer — conversation {$conv_id} was deleted");
+        return ['content' => '', 'model' => $reply['model'], 'tokens' => 0, 'cancelled' => true];
     }
-
-    $data = json_decode($response, true);
-
-    if ($http_code >= 400 || !is_array($data)) {
-        return ['content' => "⚠️ Ollama error (HTTP {$http_code}): {$response}", 'model' => OLLAMA_MODEL, 'tokens' => 0];
+    if ($reply['error'] !== null) {
+        return ['content' => "⚠️ {$reply['error']}", 'model' => $reply['model'], 'tokens' => 0, 'cancelled' => false];
     }
 
     return [
-        'content' => $data['message']['content']          ?? '(empty response)',
-        'model'   => $data['model']                        ?? OLLAMA_MODEL,
-        'tokens'  => ($data['eval_count'] ?? 0) + ($data['prompt_eval_count'] ?? 0),
+        'content'   => $reply['content'],
+        'model'     => $reply['model'],
+        'tokens'    => $reply['tokens'],
+        'cancelled' => false,
     ];
 }
 

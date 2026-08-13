@@ -70,6 +70,36 @@ function App({ user, initialCase, onBackToCases }) {
   const convDocsFileRef = useRef();
   const activeChat = chats.find((c) => c.id === activeId);
 
+  /* ── In-flight messages.send calls, keyed by conversation id ──
+     Deleting a chat aborts its request: the UI stops waiting instead of failing
+     on a conversation that no longer exists, and the server (which polls for
+     the deleted row) hangs up on Ollama so the rest of the answer is never
+     generated. */
+  const sendsInFlight = useRef(new Map());
+
+  const beginSend = (convId) => {
+    sendsInFlight.current.get(convId)?.abort();   // one send per chat at a time
+    const controller = new AbortController();
+    sendsInFlight.current.set(convId, controller);
+    return controller;
+  };
+  const endSend = (convId, controller) => {
+    if (sendsInFlight.current.get(convId) === controller) {
+      sendsInFlight.current.delete(convId);
+    }
+  };
+  const abortSend = (convId) => {
+    const controller = sendsInFlight.current.get(convId);
+    if (!controller) return false;
+    controller.abort();
+    sendsInFlight.current.delete(convId);
+    return true;
+  };
+
+  /* Current chat, readable from async callbacks that captured an older one */
+  const activeIdRef = useRef(null);
+  useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
+
   /* AI responds always in 1:1, only on @Waldy in group */
   const isMultiMember = convMembers.length > 1;
 
@@ -156,6 +186,10 @@ function App({ user, initialCase, onBackToCases }) {
   }
 
   async function handleDeleteChat(id) {
+    /* Drop the pending reply first: waiting on a chat that is about to be
+       deleted is what produced "Failed to send message" mid-generation. */
+    if (abortSend(id)) setTyping(false);
+
     try {
       await apiPost('conversations.delete', { conversation_id: id });
       const remaining = chats.filter((c) => c.id !== id);
@@ -221,13 +255,22 @@ function App({ user, initialCase, onBackToCases }) {
       setMessages([tempMsg]);
       setTyping(true);
 
-      const result = await apiPost('messages.send', {
-        conversation_id: conv.id,
-        content,
-        document_id:     doc.id,
-        case_id:         activeCase?.id ?? null,
-        knowledge_src:   '',
-      });
+      const controller = beginSend(conv.id);
+      let result;
+      try {
+        result = await apiPost('messages.send', {
+          conversation_id: conv.id,
+          content,
+          document_id:     doc.id,
+          case_id:         activeCase?.id ?? null,
+          knowledge_src:   '',
+        }, { signal: controller.signal });
+      } finally {
+        endSend(conv.id, controller);
+      }
+
+      /* Deleted mid-answer, or the user moved on — drop the reply */
+      if (result.cancelled || !result.user_message || activeIdRef.current !== conv.id) return;
 
       setMessages([
         { ...result.user_message, doc_name: doc.original_name, time: fmtTime(result.user_message.created_at) },
@@ -236,6 +279,7 @@ function App({ user, initialCase, onBackToCases }) {
           : []),
       ]);
     } catch (e) {
+      if (e.name === 'AbortError') return;   // chat deleted on purpose, not a failure
       setError('Could not start AI conversation: ' + e.message);
     } finally {
       setTyping(false);
@@ -264,6 +308,8 @@ function App({ user, initialCase, onBackToCases }) {
 
   const handleSend = useCallback(async ({ text, doc, knowledgeSrc }) => {
     if (!activeId) return;
+    const convId     = activeId;
+    const controller = beginSend(convId);
     setSending(true);
 
     try {
@@ -278,7 +324,7 @@ function App({ user, initialCase, onBackToCases }) {
         fd.append('user_id',         getUserId());
         if (activeCase?.id) fd.append('case_id', activeCase.id);
 
-        const uploaded = await apiUpload('documents.upload', fd);
+        const uploaded = await apiUpload('documents.upload', fd, { signal: controller.signal });
         docId   = uploaded.id;
         docName = doc.name;
 
@@ -306,12 +352,22 @@ function App({ user, initialCase, onBackToCases }) {
 
       /* 3. POST to API */
       const result = await apiPost('messages.send', {
-        conversation_id: activeId,
+        conversation_id: convId,
         content,
         document_id:     docId,
         case_id:         activeCase?.id ?? null,
         knowledge_src:   knowledgeSrc  || '',
-      });
+      }, { signal: controller.signal });
+
+      /* Chat was deleted while the model was writing — server stopped early
+         and saved nothing, so there is no reply to show. A missing
+         user_message means the same thing (older/newer API, abandoned send):
+         nothing to render, and not worth an error banner. */
+      if (result.cancelled || !result.user_message) return;
+
+      /* Reply for a chat the user has since left — it is saved server-side and
+         will be there on reopen; writing it here would land in the wrong chat. */
+      if (activeIdRef.current !== convId) return;
 
       /* 4. Replace temp + add messages (ai_message is null when @Waldy not mentioned) */
       const userMsg = {
@@ -331,18 +387,20 @@ function App({ user, initialCase, onBackToCases }) {
       /* 5. Auto-title conversation on first real message */
       if (messages.length === 0 && text) {
         const autoTitle = text.length > 55 ? text.slice(0, 55) + '…' : text;
-        await apiPost('conversations.rename', { conversation_id: activeId, title: autoTitle });
+        await apiPost('conversations.rename', { conversation_id: convId, title: autoTitle });
         setChats((prev) =>
-          prev.map((c) => c.id === activeId
+          prev.map((c) => c.id === convId
             ? { ...c, title: autoTitle, updated_at: new Date().toISOString() }
             : c)
         );
       }
 
     } catch (e) {
+      if (e.name === 'AbortError') return;   // chat deleted on purpose, not a failure
       setError('Failed to send message: ' + e.message);
       setSending(false);
     } finally {
+      endSend(convId, controller);
       setTyping(false);
     }
   }, [activeId, activeCase, isMultiMember, messages.length]);
