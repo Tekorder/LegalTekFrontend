@@ -51,28 +51,88 @@ async function apiFetch(action, params = {}) {
   return json.data;
 }
 
-async function apiPost(action, body = {}) {
+/** opts.signal — pass an AbortController signal to cancel a long call (see app.jsx) */
+async function apiPost(action, body = {}, opts = {}) {
   const res = await fetch(`${API}?action=${action}`, {
     method:  "POST",
     headers: { "Content-Type": "application/json" },
     body:    JSON.stringify(body),
+    signal:  opts.signal,
   });
   const json = await res.json();
   if (!json.success) throw new Error(json.error ?? "API error");
   return json.data;
 }
 
-async function apiUpload(action, formData) {
-  const res  = await fetch(`${API}?action=${action}`, { method: "POST", body: formData });
+async function apiUpload(action, formData, opts = {}) {
+  const res  = await fetch(`${API}?action=${action}`, {
+    method: "POST", body: formData, signal: opts.signal,
+  });
   const json = await res.json();
   if (!json.success) throw new Error(json.error ?? "Upload error");
   return json.data;
 }
 
+/* ══════════════════════════════════════════════════════
+   DB DATETIMES → VIEWER'S LOCAL TIME
+
+   The API sends naive strings ("2026-08-13 19:25:00") written in the
+   server's zone — UTC (APP_TIMEZONE in .env). `new Date()` reads those as
+   the browser's local time, so they used to print verbatim — never
+   converted. parseDbDate() tags them with the server zone instead, and the
+   toLocale* formatters below render the result wherever the viewer is.
+══════════════════════════════════════════════════════ */
+const SERVER_TZ = window.LT_ENV?.APP_TIMEZONE || "UTC";
+
+/** UTC offset of `timeZone`, in ms, at the given instant (DST-aware). */
+function tzOffsetMs(date, timeZone) {
+  const p = {};
+  for (const part of new Intl.DateTimeFormat("en-US", {
+    timeZone, hour12: false,
+    year: "numeric", month: "2-digit", day:    "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  }).formatToParts(date)) p[part.type] = part.value;
+
+  return Date.UTC(+p.year, +p.month - 1, +p.day,
+                  +p.hour % 24, +p.minute, +p.second) - date.getTime();
+}
+
+/**
+ * Turn any date value the API returns into a real instant.
+ *   "2026-08-13T19:25:00Z" / "…-05:00" → offset is explicit, trust it
+ *   "2026-08-13 14:25:00"              → wall clock in SERVER_TZ
+ *   "2026-08-13"                       → calendar day, no zone shift
+ */
+function parseDbDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return isNaN(value) ? null : value;
+
+  const s = String(value).trim();
+  const plain = (str) => { const d = new Date(str); return isNaN(d) ? null : d; };
+
+  // Already carries a zone (optimistic rows use toISOString()) — browser converts it
+  if (/(?:Z|[+-]\d{2}:?\d{2})$/.test(s)) return plain(s);
+
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  if (!m) return plain(s);
+  const [, y, mo, d, h, mi, se] = m;
+
+  // Date-only (issue_date, due_date…): a calendar day, not an instant.
+  // Local midnight keeps it on the same day; UTC midnight would show the day before.
+  if (h === undefined) return new Date(+y, +mo - 1, +d);
+
+  // Naive datetime: read the numbers as SERVER_TZ wall clock. Second pass in
+  // case the first guess landed on the other side of a DST change.
+  const guess = Date.UTC(+y, +mo - 1, +d, +h, +mi, +(se ?? 0));
+  const once  = guess - tzOffsetMs(new Date(guess), SERVER_TZ);
+  return new Date(guess - tzOffsetMs(new Date(once), SERVER_TZ));
+}
+
 /* ── Date group helper ─────────────────────────────── */
 function dateGroup(dateStr) {
   if (!dateStr) return "Last month";
-  const d    = new Date(dateStr);
+  const d    = parseDbDate(dateStr);
+  if (!d) return "Last month";
   const now  = new Date();
   const diff = Math.floor(
     (new Date(now.getFullYear(), now.getMonth(), now.getDate()) -
@@ -85,16 +145,18 @@ function dateGroup(dateStr) {
   return "Last month";
 }
 
-/* ── Format time from DB datetime ─────────────────── */
+/* ── Format time from DB datetime, in the viewer's zone ── */
 function fmtTime(dateStr) {
-  if (!dateStr) return "";
-  return new Date(dateStr).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" });
+  const d = parseDbDate(dateStr);
+  if (!d) return "";
+  return d.toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" });
 }
 
 /* ── Format date for case cards (e.g. "Mar 31, 2026") ─ */
 function fmtDate(dateStr) {
-  if (!dateStr) return "";
-  return new Date(dateStr).toLocaleDateString("en", {
+  const d = parseDbDate(dateStr);
+  if (!d) return "";
+  return d.toLocaleDateString("en", {
     month: "short", day: "numeric", year: "numeric",
   });
 }
@@ -188,6 +250,8 @@ window.clearUserId   = clearUserId;
 window.apiFetch      = apiFetch;
 window.apiPost       = apiPost;
 window.apiUpload     = apiUpload;
+window.SERVER_TZ     = SERVER_TZ;
+window.parseDbDate   = parseDbDate;
 window.dateGroup     = dateGroup;
 window.fmtTime       = fmtTime;
 window.fmtDate       = fmtDate;

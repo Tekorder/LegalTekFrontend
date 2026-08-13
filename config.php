@@ -18,6 +18,16 @@ define('DB_PASS', env('DB_PASS', ''));
 // ── Public API base URL, shared with the React frontend ──
 define('API_URL', env('API_URL', 'http://localhost/LegalTek/api.php'));
 
+// ── Timezone (from .env) ─────────────────────────────────
+// One zone for every timestamp the app writes — UTC, so stored instants are
+// zone-neutral and the UI converts per viewer. Without this PHP falls back
+// to php.ini's date.timezone (Europe/Berlin on XAMPP) while MySQL keeps
+// using the OS zone, so date() and CURRENT_TIMESTAMP disagreed by hours.
+$lt_tz = env('APP_TIMEZONE', 'UTC');
+define('APP_TIMEZONE', in_array($lt_tz, timezone_identifiers_list(), true) ? $lt_tz : 'UTC');
+date_default_timezone_set(APP_TIMEZONE);
+unset($lt_tz);
+
 // ── Ollama (local, from .env) ────────────────────────────
 // 127.0.0.1 not localhost — see the note in .env.example.
 define('OLLAMA_HOST',        rtrim(env('OLLAMA_HOST', 'http://127.0.0.1:11434'), '/'));
@@ -25,6 +35,9 @@ define('OLLAMA_CHAT_URL',    OLLAMA_HOST . '/api/chat');
 define('OLLAMA_TAGS_URL',    OLLAMA_HOST . '/api/tags');
 define('OLLAMA_MODEL',       env('OLLAMA_MODEL', 'llama3.2:latest'));
 define('OLLAMA_TIMEOUT',     (int) env('OLLAMA_TIMEOUT', 300));
+// How often a running generation checks that its answer is still wanted.
+// Lower = fewer wasted tokens after a delete, one cheap SELECT per poll.
+define('OLLAMA_CANCEL_POLL', max(0.1, (float) env('OLLAMA_CANCEL_POLL', 1.0)));
 
 // ── CourtListener (https://www.courtlistener.com/sign-in/) ──
 // Get your token at: Profile → API Token

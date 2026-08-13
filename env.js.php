@@ -17,6 +17,9 @@ header('Cache-Control: no-store');
 
 $public = [
     'API_URL' => env('API_URL', 'http://localhost/LegalTek/api.php'),
+    // Zone the DB datetimes are written in — utils.jsx needs it to convert
+    // them to each viewer's local time. Same default as config.php.
+    'APP_TIMEZONE' => env('APP_TIMEZONE', 'UTC'),
 ];
 
 echo 'window.LT_ENV = ' . json_encode($public, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . ";\n";
