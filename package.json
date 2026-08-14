@@ -1,0 +1,22 @@
+{
+  "name": "legaltek-frontend",
+  "version": "2.0.0",
+  "private": true,
+  "description": "LegalTek AI — Next.js frontend (talks to the Express backend in ../LegaltekBackend)",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "firebase": "^11.3.1",
+    "next": "^15.1.7",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.5.2",
+    "tailwindcss": "^3.4.17"
+  }
+}

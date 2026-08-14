@@ -1,3 +1,5 @@
+'use client';
+
 /* ═══════════════════════════════════════════════════════════
    LegalTek AI — components/DocEditViewer.jsx
 
@@ -15,8 +17,9 @@
      5. "Save Changes" → documents.save_text (reuses existing endpoint)
 ═══════════════════════════════════════════════════════════ */
 
-const { useState, useEffect, useRef, useMemo, useCallback } = React;
-const { Ico, Spinner, apiPost } = window;
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { apiPost } from '@/lib/api';
+import { Ico, Spinner } from '@/lib/icons';
 
 /* ══════════════════════════════════════════════════════
    DIFF ALGORITHM  (LCS word-level, capped at 2800 tok)
@@ -586,22 +589,9 @@ function DocEditViewer({ docId, docName, original, edited, onClose, onSave }) {
   );
 }
 
-/* ── keyframe for the scanning shimmer ── */
-(function() {
-  const id = 'doc-edit-keyframes';
-  if (!document.getElementById(id)) {
-    const s = document.createElement('style');
-    s.id = id;
-    s.textContent = `
-      @keyframes scanShimmer {
-        0%   { background-position: 200% 0; }
-        100% { background-position: -200% 0; }
-      }
-    `;
-    document.head.appendChild(s);
-  }
-})();
+/* The scanning-shimmer keyframe used to be injected into <head> by an IIFE
+   here. That ran at import time, which under Next means during the server
+   render — where there is no document. It lives in app/globals.css now. */
 
-/* ── Expose to global scope ── */
-window.DocEditViewer   = DocEditViewer;
-window.AIEditPrompt    = AIEditPrompt;
+export default DocEditViewer;
+export { DocEditViewer, AIEditPrompt };

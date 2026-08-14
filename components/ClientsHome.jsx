@@ -1,10 +1,14 @@
+'use client';
+
 /* ═══════════════════════════════════════════════
    LegalTek AI — components/ClientsHome.jsx
    Components: ClientsHome, ClientCard, CreateClientModal
 ═══════════════════════════════════════════════ */
 
-const { useState, useEffect, useRef } = React;
-const { Ico, Spinner, fmtDate, apiFetch, apiPost, getUserId } = window;
+import { useState, useEffect, useRef } from 'react';
+import { apiFetch, apiPost, getUserId } from '@/lib/api';
+import { fmtDate } from '@/lib/format';
+import { Ico, Spinner } from '@/lib/icons';
 
 /* ══════════════════════════════════════════════════════
    CLIENT CARD
@@ -438,7 +442,5 @@ function ClientsHome({ userDisplayName, userEmail }) {
   );
 }
 
-/* ── Expose to global scope ────────────────────────── */
-window.ClientCard         = ClientCard;
-window.CreateClientModal  = CreateClientModal;
-window.ClientsHome        = ClientsHome;
+export default ClientsHome;
+export { ClientCard, CreateClientModal };

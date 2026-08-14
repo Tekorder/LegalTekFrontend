@@ -1,10 +1,13 @@
+'use client';
+
 /* ═══════════════════════════════════════════════
    LegalTek AI — components/Sidebar.jsx
    Components: Sidebar, ChatItem
 ═══════════════════════════════════════════════ */
 
-const { useState, useRef, useEffect } = React;
-const { Ico, Spinner, dateGroup }     = window;
+import { useState, useRef, useEffect } from 'react';
+import { dateGroup } from '@/lib/format';
+import { Ico, Spinner } from '@/lib/icons';
 
 /* ══════════════════════════════════════════════════════
    CHAT ITEM
@@ -460,6 +463,5 @@ function Sidebar({
   );
 }
 
-/* ── Expose to global scope ────────────────────────── */
-window.ChatItem = ChatItem;
-window.Sidebar  = Sidebar;
+export default Sidebar;
+export { ChatItem };

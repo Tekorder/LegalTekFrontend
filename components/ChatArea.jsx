@@ -1,10 +1,13 @@
+'use client';
+
 /* ═══════════════════════════════════════════════
    LegalTek AI — components/ChatArea.jsx
    Components: Message, TypingIndicator, UploadZone, ChatInput
 ═══════════════════════════════════════════════ */
 
-const { useState, useRef } = React;
-const { Ico, Spinner, RenderContent, fmtTime } = window;
+import { useState, useRef } from 'react';
+import { fmtTime } from '@/lib/format';
+import { Ico, Spinner, RenderContent } from '@/lib/icons';
 
 /* ══════════════════════════════════════════════════════
    MESSAGE BUBBLE
@@ -286,8 +289,4 @@ function ChatInput({ onSend, showUpload, onToggleUpload, disabled, isMultiMember
   );
 }
 
-/* ── Expose to global scope ────────────────────────── */
-window.Message         = Message;
-window.TypingIndicator = TypingIndicator;
-window.UploadZone      = UploadZone;
-window.ChatInput       = ChatInput;
+export { Message, TypingIndicator, UploadZone, ChatInput };

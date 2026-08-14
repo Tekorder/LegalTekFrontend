@@ -1,10 +1,14 @@
+'use client';
+
 /* ═══════════════════════════════════════════════
    LegalTek AI — components/BillingPanel.jsx
    Invoices for the current project: header + line items
 ═══════════════════════════════════════════════ */
 
-const { useState, useEffect, useCallback } = React;
-const { Ico, Spinner, apiFetch, apiPost, fmtMoney, fmtDate } = window;
+import { useState, useEffect, useCallback } from 'react';
+import { apiFetch, apiPost } from '@/lib/api';
+import { fmtMoney, fmtDate } from '@/lib/format';
+import { Ico, Spinner } from '@/lib/icons';
 
 const INVOICE_STATUS_STYLES = {
   draft: { label: 'Draft', color: '#6b7280', bg: 'rgba(107,114,128,0.08)', border: 'rgba(107,114,128,0.2)' },
@@ -425,5 +429,5 @@ function BillingPanel({ caseId }) {
   );
 }
 
-window.InvoiceEditor = InvoiceEditor;
-window.BillingPanel  = BillingPanel;
+export default BillingPanel;
+export { InvoiceEditor };

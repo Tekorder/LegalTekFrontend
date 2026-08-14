@@ -1,11 +1,20 @@
+'use client';
+
 /* ═══════════════════════════════════════════════
    LegalTek AI — LoginPage.jsx
    Firebase Auth: Email/Password + Google
    Visual: navy · parchment · gold (matches fase3)
 ═══════════════════════════════════════════════ */
 
-const { useState } = React;
-const { Spinner } = window;
+import { useState } from 'react';
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+} from 'firebase/auth';
+
+import { getFirebaseAuth, isFirebaseConfigured, makeGoogleProvider } from '@/lib/firebase';
+import { Spinner } from '@/lib/icons';
 
 function LoginPage() {
   const [mode, setMode] = useState('signin'); // 'signin' | 'register'
@@ -15,8 +24,9 @@ function LoginPage() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const auth = window.firebaseAuth;
-  const firebaseReady = !!auth;
+  /* Env-based, not instance-based: getFirebaseAuth() returns null during the
+     server pass, and gating the form on that would flash the setup notice. */
+  const firebaseReady = isFirebaseConfigured;
 
   function mapAuthError(code) {
     const map = {
@@ -36,8 +46,9 @@ function LoginPage() {
   async function handleEmailSubmit(e) {
     e.preventDefault();
     setError(null);
-    if (!firebaseReady) {
-      setError('Firebase is not configured. Edit firebase-config.js with your project keys.');
+    const auth = getFirebaseAuth();
+    if (!auth) {
+      setError('Firebase is not configured. Add your NEXT_PUBLIC_FIREBASE_* keys to .env.local.');
       return;
     }
     if (mode === 'register' && password !== confirm) {
@@ -47,9 +58,9 @@ function LoginPage() {
     setLoading(true);
     try {
       if (mode === 'register') {
-        await auth.createUserWithEmailAndPassword(email.trim(), password);
+        await createUserWithEmailAndPassword(auth, email.trim(), password);
       } else {
-        await auth.signInWithEmailAndPassword(email.trim(), password);
+        await signInWithEmailAndPassword(auth, email.trim(), password);
       }
     } catch (err) {
       setError(mapAuthError(err.code));
@@ -60,15 +71,14 @@ function LoginPage() {
 
   async function handleGoogle() {
     setError(null);
-    if (!firebaseReady) {
-      setError('Firebase is not configured. Edit firebase-config.js with your project keys.');
+    const auth = getFirebaseAuth();
+    if (!auth) {
+      setError('Firebase is not configured. Add your NEXT_PUBLIC_FIREBASE_* keys to .env.local.');
       return;
     }
     setLoading(true);
     try {
-      const provider = new firebase.auth.GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: 'select_account' });
-      await auth.signInWithPopup(provider);
+      await signInWithPopup(auth, makeGoogleProvider());
     } catch (err) {
       if (err.code !== 'auth/popup-closed-by-user') {
         setError(mapAuthError(err.code));
@@ -113,7 +123,8 @@ function LoginPage() {
               color: '#92400e',
             }}>
             <strong className="block mb-1">Firebase not configured</strong>
-            Add your Firebase keys in <code className="text-xs bg-white/50 px-1 rounded">fase3/firebase-config.js</code> and reload.
+            Add your <code className="text-xs bg-white/50 px-1 rounded">NEXT_PUBLIC_FIREBASE_*</code> keys to{' '}
+            <code className="text-xs bg-white/50 px-1 rounded">.env.local</code> and restart the dev server.
           </div>
         )}
 
@@ -235,4 +246,4 @@ function LoginPage() {
   );
 }
 
-window.LoginPage = LoginPage;
+export default LoginPage;

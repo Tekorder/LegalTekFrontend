@@ -1,10 +1,13 @@
+'use client';
+
 /* ═══════════════════════════════════════════════
    LegalTek AI — components/InviteToChatModal.jsx
    Modal to invite case members into a specific chat.
 ═══════════════════════════════════════════════ */
 
-const { useState, useEffect } = React;
-const { Ico, Spinner, apiPost } = window;
+import { useState, useEffect } from 'react';
+import { apiPost } from '@/lib/api';
+import { Ico, Spinner } from '@/lib/icons';
 
 /* ── Avatar helpers ─────────────────────────── */
 const AVATAR_GRADIENTS = [
@@ -260,5 +263,4 @@ function InviteToChatModal({ conversationId, convMembers, caseMembers, onClose, 
   );
 }
 
-/* ── Expose to global scope ────────────────────────── */
-window.InviteToChatModal = InviteToChatModal;
+export default InviteToChatModal;

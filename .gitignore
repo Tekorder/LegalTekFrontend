@@ -69,6 +69,7 @@ web_modules/
 .env
 .env.*
 !.env.example
+!.env.local.example
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -143,20 +144,20 @@ vite.config.ts.timestamp-*
 .vite/
 
 # ═══════════════════════════════════════════════════════════
-# LegalTek — PHP / XAMPP project rules
+# LegalTek — project rules
 # (everything above is the stock Node template)
 # ═══════════════════════════════════════════════════════════
 
 # ── Secrets ────────────────────────────────────────────────
-# .env is already covered above (see "dotenv environment variable files").
-# config.php holds the CourtListener API token — commit config.php.example
-# instead and keep real keys local.
-/config.php
-!/config.php.example
+# .env / .env.local are already covered above (see "dotenv environment
+# variable files"). config.php holds the CourtListener API token — commit
+# config.php.example instead and keep real keys local.
+/_legacy_php/config.php
+!/_legacy_php/config.php.example
 
 # ── Runtime uploads ────────────────────────────────────────
-# Client-uploaded legal documents are runtime data, not source. Keep the
-# directory (api.php writes into it) but ignore everything inside.
+# Client-uploaded legal documents are runtime data, not source. They move to
+# the Express backend; the directory stays here until that cutover is done.
 /uploads/*
 !/uploads/.gitkeep
 

@@ -1,10 +1,14 @@
+'use client';
+
 /* ═══════════════════════════════════════════════
    LegalTek AI — components/CasesHome.jsx
    Components: CasesHome, CaseCard, CreateCaseModal
 ═══════════════════════════════════════════════ */
 
-const { useState, useEffect, useRef } = React;
-const { Ico, Spinner, fmtDate, fmtMoney, apiFetch, apiPost, getUserId } = window;
+import { useState, useEffect, useRef } from 'react';
+import { apiFetch, apiPost, getUserId } from '@/lib/api';
+import { fmtDate, fmtMoney } from '@/lib/format';
+import { Ico, Spinner } from '@/lib/icons';
 
 /* ── Matter type visual config ─────────────────────────── */
 const MATTER_STYLES = {
@@ -614,7 +618,5 @@ function CasesHome({ onSelectCase, userDisplayName, userEmail }) {
   );
 }
 
-/* ── Expose to global scope ────────────────────────── */
-window.CaseCard         = CaseCard;
-window.CreateCaseModal  = CreateCaseModal;
-window.CasesHome        = CasesHome;
+export default CasesHome;
+export { CaseCard, CreateCaseModal };

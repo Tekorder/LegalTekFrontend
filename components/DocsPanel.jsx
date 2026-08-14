@@ -1,10 +1,14 @@
+'use client';
+
 /* ═══════════════════════════════════════════════
    LegalTek AI — components/DocsPanel.jsx
    Mini-drive: folders + files with breadcrumb nav
 ═══════════════════════════════════════════════ */
 
-const { useState, useRef, useEffect, useCallback } = React;
-const { Ico, Spinner, fmtTime, fmtDate, apiFetch, apiPost, apiUpload, getUserId, API } = window;
+import { Fragment, useState, useRef, useEffect, useCallback } from 'react';
+import { apiFetch, apiPost, apiUpload, getUserId, API } from '@/lib/api';
+import { fmtTime, fmtDate } from '@/lib/format';
+import { Ico, Spinner } from '@/lib/icons';
 
 /* ── File size formatter ─────────────────────── */
 const fmtSize = (bytes) => {
@@ -438,7 +442,7 @@ function DocsPanel({ caseId, onEditDoc, onOpenAnalyze, onAskDocAI }) {
             Repository
           </button>
           {folderStack.map((f, i) => (
-            <React.Fragment key={f.id}>
+            <Fragment key={f.id}>
               <Ico name="chevright" size={11} stroke="rgba(13,27,42,0.3)" />
               <button
                 onClick={() => breadcrumbNav(i)}
@@ -446,7 +450,7 @@ function DocsPanel({ caseId, onEditDoc, onOpenAnalyze, onAskDocAI }) {
                 style={{ color: i === folderStack.length - 1 ? '#0d1b2a' : '#d4af37' }}>
                 {f.name}
               </button>
-            </React.Fragment>
+            </Fragment>
           ))}
         </div>
 
@@ -792,5 +796,4 @@ function DocsPanel({ caseId, onEditDoc, onOpenAnalyze, onAskDocAI }) {
   );
 }
 
-/* ── Expose to global scope ────────────────────────── */
-window.DocsPanel = DocsPanel;
+export default DocsPanel;

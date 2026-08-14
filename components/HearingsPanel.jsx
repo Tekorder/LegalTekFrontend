@@ -1,10 +1,13 @@
+'use client';
+
 /* ═══════════════════════════════════════════════
    LegalTek AI — components/HearingsPanel.jsx
    Calendar of hearings: notes, outcome, and documents studied
 ═══════════════════════════════════════════════ */
 
-const { useState, useEffect, useCallback, useMemo, useRef } = React;
-const { Ico, Spinner, apiFetch, apiPost, apiUpload, getUserId } = window;
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { apiFetch, apiPost, apiUpload, getUserId } from '@/lib/api';
+import { Ico, Spinner } from '@/lib/icons';
 
 const HEARING_STATUS_STYLES = {
   scheduled: { label: 'Scheduled', color: '#b45309', bg: 'rgba(180,83,9,0.08)',   border: 'rgba(180,83,9,0.2)'   },
@@ -641,6 +644,5 @@ function HearingsPanel({ caseId }) {
   );
 }
 
-window.CreateHearingModal = CreateHearingModal;
-window.HearingDetail      = HearingDetail;
-window.HearingsPanel      = HearingsPanel;
+export default HearingsPanel;
+export { CreateHearingModal, HearingDetail };

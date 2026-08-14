@@ -1,10 +1,19 @@
+'use client';
+
 /* ═══════════════════════════════════════════════
    LegalTek AI — components/AccountHome.jsx
    Account settings: profile (read-only) + change password
 ═══════════════════════════════════════════════ */
 
-const { useState } = React;
-const { Ico, Spinner } = window;
+import { useState } from 'react';
+import {
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updatePassword,
+} from 'firebase/auth';
+
+import { getFirebaseAuth } from '@/lib/firebase';
+import { Ico, Spinner } from '@/lib/icons';
 
 function mapAccountAuthError(code) {
   const map = {
@@ -17,8 +26,7 @@ function mapAccountAuthError(code) {
 }
 
 function AccountHome() {
-  const auth        = window.firebaseAuth;
-  const currentUser = auth?.currentUser;
+  const currentUser = getFirebaseAuth()?.currentUser ?? null;
 
   const providers          = currentUser?.providerData?.map(p => p.providerId) || [];
   const hasPasswordProvider = providers.includes('password');
@@ -42,9 +50,9 @@ function AccountHome() {
 
     setSaving(true);
     try {
-      const credential = firebase.auth.EmailAuthProvider.credential(currentUser.email, currentPassword);
-      await currentUser.reauthenticateWithCredential(credential);
-      await currentUser.updatePassword(newPassword);
+      const credential = EmailAuthProvider.credential(currentUser.email, currentPassword);
+      await reauthenticateWithCredential(currentUser, credential);
+      await updatePassword(currentUser, newPassword);
       setSuccess('Password updated successfully.');
       setCurrentPassword('');
       setNewPassword('');
@@ -197,4 +205,4 @@ function AccountHome() {
   );
 }
 
-window.AccountHome = AccountHome;
+export default AccountHome;

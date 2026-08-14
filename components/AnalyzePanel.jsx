@@ -1,10 +1,13 @@
+'use client';
+
 /* ═══════════════════════════════════════════════
    LegalTek AI — components/AnalyzePanel.jsx
    Dummy contract metadata table + AI Query columns (demo)
 ═══════════════════════════════════════════════ */
 
-const { useState, useEffect, useCallback, useMemo } = React;
-const { Ico, Spinner, apiFetch, getUserId } = window;
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { apiFetch, getUserId } from '@/lib/api';
+import { Ico, Spinner } from '@/lib/icons';
 
 const DUMMY_PARTIES = ['Acme Corp', 'Globex LLC', 'Initech Partners', 'Umbrella AG', 'Stark Industries Ltd.', 'Wayne Enterprises'];
 const DUMMY_DATES = ['2024-03-15', '2023-11-02', '2025-01-20', '2024-08-01', '2022-12-10'];
@@ -219,4 +222,4 @@ function AnalyzePanel({ caseId, onEditDoc }) {
   );
 }
 
-window.AnalyzePanel = AnalyzePanel;
+export default AnalyzePanel;

@@ -1,3 +1,5 @@
+'use client';
+
 /* ═══════════════════════════════════════════════════════════
    LegalTek AI — components/DocumentEditor.jsx
    Rich-text editor for legal documents.
@@ -9,9 +11,10 @@
    • Stores HTML in extracted_text; AI layer uses strip_tags()
 ═══════════════════════════════════════════════════════════ */
 
-const { useState, useEffect, useRef, useCallback } = React;
-const { Ico, Spinner, apiPost } = window;
-const { DocEditViewer: DiffViewer } = window;
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { apiPost } from '@/lib/api';
+import { Ico, Spinner } from '@/lib/icons';
+import { DocEditViewer as DiffViewer } from '@/components/DocEditViewer';
 
 /* ══════════════════════════════════════════════
    TOOLBAR BUTTON
@@ -523,5 +526,4 @@ function DocumentEditor({ doc, onClose, onSaved }) {
   );
 }
 
-/* ── Expose to global scope ────────────────── */
-window.DocumentEditor = DocumentEditor;
+export default DocumentEditor;

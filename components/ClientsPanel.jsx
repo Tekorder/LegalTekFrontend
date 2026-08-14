@@ -1,10 +1,13 @@
+'use client';
+
 /* ═══════════════════════════════════════════════
    LegalTek AI — components/ClientsPanel.jsx
    Clients linked to the current project
 ═══════════════════════════════════════════════ */
 
-const { useState, useEffect, useCallback } = React;
-const { Ico, Spinner, apiFetch, apiPost, getUserId } = window;
+import { useState, useEffect, useCallback } from 'react';
+import { apiFetch, apiPost, getUserId } from '@/lib/api';
+import { Ico, Spinner } from '@/lib/icons';
 
 const getClientInitials = (name) =>
   name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
@@ -170,4 +173,4 @@ function ClientsPanel({ caseId }) {
   );
 }
 
-window.ClientsPanel = ClientsPanel;
+export default ClientsPanel;

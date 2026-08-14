@@ -1,3 +1,5 @@
+'use client';
+
 /* ═══════════════════════════════════════════════
    LegalTek AI — components/TeamPanel.jsx
    Slide-in panel to manage case team members.
@@ -8,8 +10,9 @@
      • 2+ members → Waldy only responds when @Waldy is mentioned
 ═══════════════════════════════════════════════ */
 
-const { useState, useEffect, useRef } = React;
-const { Ico, Spinner, apiFetch, apiPost } = window;
+import { useState, useEffect, useRef } from 'react';
+import { apiFetch, apiPost } from '@/lib/api';
+import { Ico, Spinner } from '@/lib/icons';
 
 /* ── Avatar helpers ─────────────────────────── */
 const AVATAR_GRADIENTS = [
@@ -270,5 +273,4 @@ function TeamPanel({ caseId, members, onClose, onMembersChange }) {
   );
 }
 
-/* ── Expose to global scope ────────────────────────── */
-window.TeamPanel = TeamPanel;
+export default TeamPanel;

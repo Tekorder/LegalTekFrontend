@@ -1,9 +1,11 @@
+'use client';
+
 /* ═══════════════════════════════════════════════
    LegalTek AI — components/HomeSidebar.jsx
    Top-level nav sidebar: Projects / Clients / Account
 ═══════════════════════════════════════════════ */
 
-const { Ico } = window;
+import { Ico } from '@/lib/icons';
 
 const HOME_NAV_ITEMS = [
   { key: 'cases',   label: 'Projects', icon: 'shield'   },
@@ -77,4 +79,4 @@ function HomeSidebar({ topView, onSwitchView, userDisplayName, userEmail, onSign
   );
 }
 
-window.HomeSidebar = HomeSidebar;
+export default HomeSidebar;
