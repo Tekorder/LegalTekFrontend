@@ -4,28 +4,32 @@ React frontend for LegalTek AI: cases, clients, documents, hearings, billing and
 the AI chat. Migrated from the PHP/XAMPP + Babel-in-the-browser setup to the
 Next.js App Router.
 
-The API it talks to is **Express**, living in `../LegaltekBackend` (not written
-yet — see [Backend contract](#backend-contract)). The database stays **MySQL**.
+The API it talks to is **Express**, living in `../LegalTekBackend`. The database
+stays **MySQL** (`legaltek`, served by XAMPP in local dev).
 
 ---
 
 ## Running it
 
-```bash
-npm install
-```
+Both halves have to be up, plus MySQL.
+
+**1. MySQL** — start it from the XAMPP control panel (it is not registered as a
+Windows service, so it does not come up on boot).
+
+**2. Backend** — `../LegalTekBackend`, listens on 4000:
 
 ```bash
-cp .env.local.example .env.local
+cd ../LegalTekBackend && npm install && npm start
 ```
+
+**3. Frontend** — this folder:
 
 ```bash
-npm run dev
+npm install && cp .env.local.example .env.local && npm run dev
 ```
 
-Opens on http://localhost:3000. Until the Express backend exists you get the
-login screen (Firebase Auth is independent of the API); every `/api` call
-fails until `BACKEND_URL` points at something real.
+Opens on http://localhost:3000. Firebase Auth works without the backend, so you
+can always reach the login screen; everything past it needs all three running.
 
 `npm run build` → production bundle, `npm start` → serve it.
 
@@ -116,9 +120,10 @@ over there.
 
 ## Backend contract
 
-The frontend was left on the exact contract `api.php` implemented, so the
-Express port can be a direct translation. `_legacy_php/api.php` is the reference
-implementation and `legaltek.sql` is the schema.
+The frontend was left on the exact contract `api.php` implemented, and
+`../LegalTekBackend` implements that same contract — `src/routes.js` there is
+1:1 with the old PHP `$routes` table. `_legacy_php/api.php` remains the
+reference implementation and `legaltek.sql` is the schema.
 
 **Routing** — one query parameter selects the handler:
 
@@ -181,10 +186,14 @@ envelope — it streams a `.docx` blob, and `DocsPanel` fetches it directly.
 
 ## Still to do
 
-- Write the Express backend in `../LegaltekBackend`, porting
-  `_legacy_php/api.php` (routing, MySQL queries, docx extraction, the Ollama
-  chat loop, and the CourtListener research path).
-- Move `.env` (DB credentials, `OLLAMA_*`, `APP_TIMEZONE`) and the `uploads/`
-  directory over to the backend once it runs.
-- Rotate the CourtListener token in `_legacy_php/config.php` — that file is
-  committed to git, so the token is in the repo history.
+- Delete this folder's `uploads/` once you're satisfied the backend serves the
+  documents correctly. The 30 files were **copied** to
+  `../LegalTekBackend/uploads/` (where `config.uploadDir` points); the originals
+  here are now dead weight, kept only as a fallback.
+- Delete the root `.env` — its values now live in `../LegalTekBackend/.env`.
+  Next still loads it, which is confusing but harmless: none of its keys are
+  `NEXT_PUBLIC_*`, so nothing reaches the browser.
+- Rotate the CourtListener token — `_legacy_php/config.php` is committed, so the
+  token is in this repo's git history. It was carried into the backend's `.env`
+  as-is to keep the research path working.
+- `_legacy_php/` can go once the Express port is trusted in production.
