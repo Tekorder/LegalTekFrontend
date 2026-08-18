@@ -1,11 +1,9 @@
 # LegalTek AI — Frontend (Next.js)
 
-React frontend for LegalTek AI: cases, clients, documents, billing and
-the AI chat. Migrated from the PHP/XAMPP + Babel-in-the-browser setup to the
-Next.js App Router.
+React frontend for LegalTek AI: cases, clients, documents, hearings, billing, and the AI chat. Migrated from the PHP/XAMPP + Babel-in-the-browser setup to the Next.js App Router.
 
 The API it talks to is **Express**, living in `../LegalTekBackend`. The database
-stays **MySQL** (`legaltek`, served by XAMPP in local dev).
+is **MySQL** (`legaltek`, served by XAMPP in local dev).
 
 ---
 
@@ -39,53 +37,42 @@ can always reach the login screen; everything past it needs all three running.
 
 ```
 app/
-  layout.jsx        Was index.html — fonts, global CSS, <div id="app-root">
-  page.jsx          Was the Root component in app.jsx — Firebase auth gate,
-                    users.sync_firebase, then Cases / Clients / Account home
-  globals.css       Was global.css, plus the @tailwind directives and the
-                    scanShimmer keyframe that DocEditViewer used to inject
+  layout.jsx        Fonts, global CSS, <div id="app-root">
+  page.jsx          Firebase auth gate, users.sync_firebase, then the
+                    Cases / Clients / Account home
+  globals.css       @tailwind directives, brand styles, keyframes
 components/
-  AppShell.jsx      Was the App component in app.jsx — the case workspace
-  *.jsx             The original components, now ESM modules
+  AppShell.jsx      The case workspace — sidebar + chat + panels
+  *.jsx             Panels, modals and the document editor
 lib/
-  api.js            Was utils.jsx (API helpers) + env.js.php
-  format.js         Was utils.jsx (parseDbDate + the fmt* helpers)
-  icons.jsx         Was utils.jsx (Ico, Spinner, RenderContent, SVG_PATHS)
-  firebase.js       Was firebase-config.js, on the modular SDK
-_legacy_php/        The old app, kept as the reference for the Express port
+  api.js            apiFetch / apiPost / apiUpload + the response envelope
+  format.js         parseDbDate + the fmt* helpers
+  icons.jsx         Ico, Spinner, RenderContent, SVG_PATHS
+  firebase.js       Firebase Auth on the modular SDK
 ```
 
-`@/` resolves to the project root (`jsconfig.json`), so `@/lib/api`,
+The SQL schema lives with the backend, at `../LegalTekBackend/db/legaltek.sql`.
+
+`@/` resolves to the repo root (`jsconfig.json`), so `@/lib/api`,
 `@/components/Sidebar`, etc.
 
 ---
 
-## What the migration changed
+## Constraints worth knowing
 
-| Before | After |
-| --- | --- |
-| `<script type="text/babel">` + Babel standalone in the browser | Next.js compiles the JSX ahead of time |
-| Every symbol on `window` (`window.Ico = Ico`) | `export` / `import` |
-| Tailwind via CDN + inline `tailwind.config` | `tailwindcss` in the build, `tailwind.config.js` |
-| Firebase compat SDK off gstatic (`firebase.auth()`) | `firebase` npm package, modular API |
-| Keys hardcoded in `firebase-config.js` | `NEXT_PUBLIC_FIREBASE_*` in `.env.local` |
-| `env.js.php` echoing `window.LT_ENV` | `process.env.NEXT_PUBLIC_*`, inlined at build |
-| `API_URL` → `api.php` | `NEXT_PUBLIC_API_URL` → `/api`, proxied to Express |
+The app is entirely client-rendered — every route is Firebase-auth gated and
+localStorage-backed, so there is nothing meaningful to render on the server.
+Two consequences:
 
-Component logic, markup, styling and the API call shapes are unchanged — this
-was a packaging migration, not a rewrite.
-
-Two things that had to change to survive server rendering:
-
-- `DocEditViewer.jsx` injected a `<style>` into `document.head` at import time.
-  That runs during SSR, where `document` doesn't exist. The keyframe moved to
-  `globals.css`.
-- `getUserId()` reads `localStorage`, so it now returns the `1` default when
-  called on the server instead of throwing.
-
-Fonts stay on a plain `<link>` to Google Fonts rather than `next/font`:
-`next/font` downloads the woff2 at **build** time, so a build machine without
-access to `fonts.gstatic.com` fails the whole build.
+- **No browser globals at module scope.** Anything touching
+  `window` / `document` / `localStorage` must sit inside an effect or behind a
+  `typeof window === 'undefined'` guard, because module bodies execute during
+  SSR. Keyframes and injected styles belong in `globals.css`, not in a
+  component. `getUserId()` returns its `1` default on the server rather than
+  throwing.
+- **Fonts stay on a plain `<link>` to Google Fonts, not `next/font`.**
+  `next/font` downloads the woff2 at **build** time, so a build machine without
+  access to `fonts.gstatic.com` fails the whole build.
 
 ---
 
@@ -102,8 +89,8 @@ access to `fonts.gstatic.com` fails the whole build.
 
 `NEXT_PUBLIC_*` values are inlined into the client bundle at build time. Nothing
 secret goes in one. DB credentials, the Ollama host and the CourtListener token
-belong to the backend's own `.env` (the old root `.env` and
-`_legacy_php/config.php` have the current values).
+belong to the backend's own `.env`, which is the single source of truth for
+them. This repo's only env file is `.env.local`.
 
 ### Request flow
 
@@ -120,10 +107,8 @@ over there.
 
 ## Backend contract
 
-The frontend was left on the exact contract `api.php` implemented, and
-`../LegalTekBackend` implements that same contract — `src/routes.js` there is
-1:1 with the old PHP `$routes` table. `_legacy_php/api.php` remains the
-reference implementation and `legaltek.sql` is the schema.
+`../LegalTekBackend` implements this contract; `src/routes.js` there is the
+authoritative list of actions, and `db/legaltek.sql` is the schema.
 
 **Routing** — one query parameter selects the handler:
 
@@ -185,14 +170,22 @@ envelope — it streams a `.docx` blob, and `DocsPanel` fetches it directly.
 
 ## Still to do
 
-- Delete this folder's `uploads/` once you're satisfied the backend serves the
-  documents correctly. The 30 files were **copied** to
-  `../LegalTekBackend/uploads/` (where `config.uploadDir` points); the originals
-  here are now dead weight, kept only as a fallback.
-- Delete the root `.env` — its values now live in `../LegalTekBackend/.env`.
-  Next still loads it, which is confusing but harmless: none of its keys are
-  `NEXT_PUBLIC_*`, so nothing reaches the browser.
-- Rotate the CourtListener token — `_legacy_php/config.php` is committed, so the
-  token is in this repo's git history. It was carried into the backend's `.env`
-  as-is to keep the research path working.
-- `_legacy_php/` can go once the Express port is trusted in production.
+- **Rotate the CourtListener token.** A token was committed in `a87c920` and
+  pushed to `origin/main`, so it is in this repo's public history. The
+  working-tree copy has been scrubbed, but that does not un-leak it — only
+  issuing a fresh token at CourtListener does. The current value is still live
+  in `../LegalTekBackend/.env`, keeping the research path working until it is
+  replaced.
+- Optionally purge that token from git history (`git filter-repo`, then a
+  coordinated force-push). Rotation makes this cosmetic, so it is not urgent.
+
+### Cleanup already done
+
+- This folder's duplicate `uploads/` is gone — the 30 files were verified
+  byte-identical to `../LegalTekBackend/uploads/` (where `config.uploadDir`
+  points) and are served through the `/uploads/*` rewrite.
+- A stale root `.env` and `.env.example` are gone. They described settings this
+  repo does not use (`DB_PASS`, `OLLAMA_*`), so copying the wrong template was a
+  live footgun. `.env.local.example` is the only template now.
+- `olamalab/`, an unrelated app that was vendored in here, moved to
+  `../olamalab`.

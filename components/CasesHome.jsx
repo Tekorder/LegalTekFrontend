@@ -112,7 +112,7 @@ function CaseCard({ caseData, onOpen, onDelete }) {
 
         {confirm ? (
           <div className="flex items-center gap-2 w-full" onClick={e => e.stopPropagation()}>
-            <span className="text-xs flex-1" style={{ color: '#f87171' }}>Delete this project?</span>
+            <span className="text-xs flex-1" style={{ color: '#f87171' }}>Delete this case?</span>
             <button onClick={handleDelete}
               disabled={deleting}
               className="text-[11px] font-semibold px-2.5 py-1 rounded text-white"
@@ -133,7 +133,7 @@ function CaseCard({ caseData, onOpen, onDelete }) {
               style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)' }}
               onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
               onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}
-              title="Delete project">
+              title="Delete case">
               <Ico name="trash" size={13} stroke="currentColor" />
             </button>
 
@@ -143,7 +143,7 @@ function CaseCard({ caseData, onOpen, onDelete }) {
               style={{ color: '#d4af37' }}
               onMouseEnter={e => e.currentTarget.style.color = '#f8e870'}
               onMouseLeave={e => e.currentTarget.style.color = '#d4af37'}>
-              Open Project
+              Open Case
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M5 12h14M12 5l7 7-7 7" />
@@ -257,7 +257,7 @@ function CreateCaseModal({ onClose, onCreate }) {
                 <Ico name="plus" size={16} stroke="white" strokeWidth={2.5} />
               </div>
               <div>
-                <h3 className="text-gray-900 font-semibold text-base leading-none">New Project</h3>
+                <h3 className="text-gray-900 font-semibold text-base leading-none">New Case</h3>
                 <p className="text-gray-500 text-xs mt-0.5">Create a new legal matter</p>
               </div>
             </div>
@@ -266,7 +266,7 @@ function CreateCaseModal({ onClose, onCreate }) {
               {/* Title */}
               <div>
                 <label className="text-xs font-semibold text-gray-500 mb-1.5 block uppercase tracking-wide">
-                  Project Title *
+                  Case Title *
                 </label>
                 <input
                   ref={titleRef}
@@ -339,7 +339,7 @@ function CreateCaseModal({ onClose, onCreate }) {
               </div>
               <div>
                 <h3 className="text-gray-900 font-semibold text-base leading-none">Select Clients</h3>
-                <p className="text-gray-500 text-xs mt-0.5">Add clients to this project — or skip for now</p>
+                <p className="text-gray-500 text-xs mt-0.5">Add clients to this case — or skip for now</p>
               </div>
             </div>
 
@@ -353,7 +353,7 @@ function CreateCaseModal({ onClose, onCreate }) {
             {!loadingClients && clients.length === 0 && (
               <div className="text-center py-8">
                 <p className="text-sm text-gray-500">You don't have any clients yet.</p>
-                <p className="text-xs text-gray-400 mt-1">This project can still be created without one.</p>
+                <p className="text-xs text-gray-400 mt-1">This case can still be created without one.</p>
               </div>
             )}
 
@@ -448,7 +448,7 @@ function CreateCaseModal({ onClose, onCreate }) {
                 className="flex-1 btn-primary py-2.5 rounded-lg text-white text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50">
                 {saving
                   ? <><Spinner size={14} /> Creating…</>
-                  : <><Ico name="plus" size={14} stroke="white" /> Create Project</>}
+                  : <><Ico name="plus" size={14} stroke="white" /> Create Case</>}
               </button>
             </div>
           </>
@@ -475,7 +475,7 @@ function CasesHome({ onSelectCase, userDisplayName, userEmail }) {
       const data = await apiFetch('cases.list', { user_id: getUserId() });
       setCases(data);
     } catch (e) {
-      setError('Could not load projects: ' + e.message);
+      setError('Could not load cases: ' + e.message);
     } finally {
       setLoading(false);
     }
@@ -486,7 +486,7 @@ function CasesHome({ onSelectCase, userDisplayName, userEmail }) {
       const newCase = await apiPost('cases.create', { user_id: getUserId(), title, description, matter_type, client_ids });
       setCases(prev => [newCase, ...prev]);
     } catch (e) {
-      setError('Could not create project: ' + e.message);
+      setError('Could not create case: ' + e.message);
     }
   }
 
@@ -495,7 +495,7 @@ function CasesHome({ onSelectCase, userDisplayName, userEmail }) {
       await apiPost('cases.delete', { case_id: caseId });
       setCases(prev => prev.filter(c => c.id !== caseId));
     } catch (e) {
-      setError('Could not delete project: ' + e.message);
+      setError('Could not delete case: ' + e.message);
     }
   }
 
@@ -516,7 +516,7 @@ function CasesHome({ onSelectCase, userDisplayName, userEmail }) {
             Welcome back{userDisplayName ? `, ${userDisplayName.split(' ')[0]}` : userEmail ? `, ${userEmail.split('@')[0]}` : ''}
           </p>
           <p className="text-gray-400 text-xs mt-0.5">
-            {activeCases.length} active project{activeCases.length !== 1 ? 's' : ''}
+            {activeCases.length} active case{activeCases.length !== 1 ? 's' : ''}
           </p>
         </div>
 
@@ -524,7 +524,7 @@ function CasesHome({ onSelectCase, userDisplayName, userEmail }) {
           onClick={() => setShowModal(true)}
           className="btn-primary px-4 py-2.5 rounded-lg text-white text-sm font-medium flex items-center gap-2 flex-shrink-0">
           <Ico name="plus" size={15} stroke="white" strokeWidth={2.5} />
-          New Project
+          New Case
         </button>
       </header>
 
@@ -547,7 +547,7 @@ function CasesHome({ onSelectCase, userDisplayName, userEmail }) {
         {loading && (
           <div className="flex items-center justify-center gap-3 py-20 text-stone-400">
             <Spinner size={20} />
-            <span className="text-sm">Loading your projects…</span>
+            <span className="text-sm">Loading your cases…</span>
           </div>
         )}
 
@@ -560,16 +560,16 @@ function CasesHome({ onSelectCase, userDisplayName, userEmail }) {
               <Ico name="empty" size={36} stroke="rgba(13,27,42,0.3)" />
             </div>
             <div>
-              <h2 className="text-gray-900 font-semibold text-xl">No projects yet</h2>
+              <h2 className="text-gray-900 font-semibold text-xl">No cases yet</h2>
               <p className="text-gray-500 text-sm mt-2 max-w-xs">
-                Create your first legal project to start organizing chats and documents.
+                Create your first legal case to start organizing chats and documents.
               </p>
             </div>
             <button
               onClick={() => setShowModal(true)}
               className="btn-primary px-6 py-3 rounded-lg text-white text-sm font-medium flex items-center gap-2 mt-2">
               <Ico name="plus" size={15} stroke="white" strokeWidth={2.5} />
-              Create your first project
+              Create your first case
             </button>
           </div>
         )}
@@ -579,7 +579,7 @@ function CasesHome({ onSelectCase, userDisplayName, userEmail }) {
           <section className="mb-8">
             <p className="text-[10px] font-semibold uppercase tracking-widest mb-4"
               style={{ color: 'rgba(13,27,42,0.35)' }}>
-              Active — {activeCases.length} project{activeCases.length !== 1 ? 's' : ''}
+              Active — {activeCases.length} case{activeCases.length !== 1 ? 's' : ''}
             </p>
             <div className="grid gap-4"
               style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>

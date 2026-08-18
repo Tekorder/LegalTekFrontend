@@ -3,7 +3,6 @@
 /* ═══════════════════════════════════════════════
    LegalTek AI — lib/icons.jsx
    SVG icons, mini-markdown renderer, spinner.
-   Was utils.jsx (bottom half).
 ═══════════════════════════════════════════════ */
 
 export const SVG_PATHS = {

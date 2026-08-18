@@ -2,7 +2,7 @@
 
 /* ═══════════════════════════════════════════════
    LegalTek AI — components/BillingPanel.jsx
-   Invoices for the current project: header + line items
+   Invoices for the current case: header + line items
 ═══════════════════════════════════════════════ */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -388,7 +388,7 @@ function BillingPanel({ caseId }) {
             </div>
             <div>
               <h2 className="text-gray-900 font-semibold text-base">No invoices yet</h2>
-              <p className="text-gray-500 text-sm mt-1 max-w-xs">Create your first invoice for this project.</p>
+              <p className="text-gray-500 text-sm mt-1 max-w-xs">Create your first invoice for this case.</p>
             </div>
           </div>
         )}

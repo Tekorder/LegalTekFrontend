@@ -176,7 +176,8 @@ body {
 
 /* ─────────────────────────────────────────────
    Scanning shimmer — AI edit preview (DocEditViewer)
-   Was injected into <head> at import time by an IIFE in that file.
+   Lives here, not in the component: injecting a <style> at import time runs
+   during SSR, where `document` does not exist.
 ───────────────────────────────────────────── */
 @keyframes scanShimmer {
   0%   { background-position: 200% 0; }

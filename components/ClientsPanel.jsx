@@ -2,7 +2,7 @@
 
 /* ═══════════════════════════════════════════════
    LegalTek AI — components/ClientsPanel.jsx
-   Clients linked to the current project
+   Clients linked to the current case
 ═══════════════════════════════════════════════ */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -77,7 +77,7 @@ function ClientsPanel({ caseId }) {
       <header className="glass flex-shrink-0 px-5 py-3.5"
         style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
         <h1 className="text-base font-semibold text-gray-900 leading-none">Clients</h1>
-        <p className="text-gray-400 text-xs mt-1">Clients linked to this project</p>
+        <p className="text-gray-400 text-xs mt-1">Clients linked to this case</p>
       </header>
 
       <div className="flex-1 overflow-y-auto px-5 py-5">
@@ -132,7 +132,7 @@ function ClientsPanel({ caseId }) {
             </div>
             <div>
               <h2 className="text-gray-900 font-semibold text-base">No clients linked yet</h2>
-              <p className="text-gray-500 text-sm mt-1 max-w-xs">Add a client above to link them to this project.</p>
+              <p className="text-gray-500 text-sm mt-1 max-w-xs">Add a client above to link them to this case.</p>
             </div>
           </div>
         )}
@@ -159,7 +159,7 @@ function ClientsPanel({ caseId }) {
                   disabled={removingId === c.id}
                   className="flex-shrink-0 p-1.5 rounded text-gray-400 hover:text-red-500 transition-colors"
                   style={{ background: 'rgba(0,0,0,0.04)' }}
-                  title="Remove from project">
+                  title="Remove from case">
                   {removingId === c.id
                     ? <Spinner size={12} />
                     : <Ico name="close" size={12} stroke="currentColor" />}

@@ -82,7 +82,7 @@ function AnalyzePanel({ caseId, onEditDoc }) {
         style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
         <h1 className="text-base font-semibold text-gray-900 leading-none">Analyze</h1>
         <p className="text-xs text-gray-400 mt-1">
-          Contract metadata preview (dummy data). Rows match uploaded documents in this project.
+          Contract metadata preview (dummy data). Rows match uploaded documents in this case.
         </p>
       </header>
 
@@ -144,7 +144,7 @@ function AnalyzePanel({ caseId, onEditDoc }) {
           <div className="flex flex-col items-center justify-center py-16 text-center rounded-lg"
             style={{ background: 'rgba(255,255,255,0.5)', border: '1px dashed rgba(13,27,42,0.12)' }}>
             <Ico name="file" size={36} stroke="rgba(13,27,42,0.2)" />
-            <p className="text-gray-500 text-sm mt-3">No documents in this project yet.</p>
+            <p className="text-gray-500 text-sm mt-3">No documents in this case yet.</p>
             <p className="text-gray-400 text-xs mt-1 max-w-sm">
               Upload files from Repository to populate this table (one row per document).
             </p>

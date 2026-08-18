@@ -3,7 +3,6 @@
 /* ═══════════════════════════════════════════════
    LegalTek AI — app/page.jsx
    AUTH ROOT — Login lives HERE (before any case/chat UI)
-   Was the Root component at the bottom of app.jsx.
 
    Client component on purpose: the whole app is Firebase-auth gated and
    localStorage-backed, so there is nothing to render on the server. The first
