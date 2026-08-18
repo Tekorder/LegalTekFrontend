@@ -99,7 +99,7 @@ function CreateHearingModal({ initialDate, onClose, onCreate }) {
           </div>
           <div>
             <h3 className="text-gray-900 font-semibold text-base leading-none">New Hearing</h3>
-            <p className="text-gray-500 text-xs mt-0.5">Schedule a hearing for this project</p>
+            <p className="text-gray-500 text-xs mt-0.5">Schedule a hearing for this case</p>
           </div>
         </div>
 

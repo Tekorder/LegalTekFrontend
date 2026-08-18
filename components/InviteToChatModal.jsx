@@ -196,7 +196,7 @@ function InviteToChatModal({ conversationId, convMembers, caseMembers, onClose, 
             <>
               <p className="text-[10px] font-semibold uppercase tracking-widest mb-3"
                 style={{ color: 'rgba(13,27,42,0.35)' }}>
-                Project members — invite to this chat
+                Case members — invite to this chat
               </p>
               <div className="flex flex-col gap-2">
                 {available.map(m => (

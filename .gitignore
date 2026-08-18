@@ -68,7 +68,6 @@ web_modules/
 # dotenv environment variable files
 .env
 .env.*
-!.env.example
 !.env.local.example
 
 # parcel-bundler cache (https://parceljs.org/)
@@ -149,21 +148,14 @@ vite.config.ts.timestamp-*
 # ═══════════════════════════════════════════════════════════
 
 # ── Secrets ────────────────────────────────────────────────
-# .env / .env.local are already covered above (see "dotenv environment
-# variable files"). config.php holds the CourtListener API token — commit
-# config.php.example instead and keep real keys local.
-/_legacy_php/config.php
-!/_legacy_php/config.php.example
+# .env.local is covered above (see "dotenv environment variable files").
+# Nothing else in this repo holds credentials: DB / Ollama / CourtListener
+# config all belong to ../LegalTekBackend/.env.
 
 # ── Runtime uploads ────────────────────────────────────────
-# Client-uploaded legal documents are runtime data, not source. They move to
-# the Express backend; the directory stays here until that cutover is done.
-/uploads/*
-!/uploads/.gitkeep
-
-# ── PHP / Composer ─────────────────────────────────────────
-/vendor/
-composer.phar
+# Client-uploaded legal documents live in ../LegalTekBackend/uploads and are
+# served through the /uploads/* rewrite in next.config.mjs. Nothing to ignore
+# here any more.
 
 # ── Claude Code local settings ─────────────────────────────
 .claude/settings.local.json

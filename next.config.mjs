@@ -18,7 +18,7 @@ const nextConfig = {
 
   async rewrites() {
     return [
-      // Bare "/api?action=…" — the shape utils.jsx used against api.php.
+      // Bare "/api?action=…" — the shape lib/api.js calls.
       { source: '/api', destination: `${BACKEND_URL}/api` },
       { source: '/api/:path*', destination: `${BACKEND_URL}/api/:path*` },
       // Uploaded .docx files served off the backend's uploads/ directory.

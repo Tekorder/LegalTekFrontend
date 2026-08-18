@@ -3,7 +3,6 @@
 /* ═══════════════════════════════════════════════
    LegalTek AI — components/AppShell.jsx
    The case workspace: sidebar + chat + panels.
-   Was the `App` component in app.jsx.
 ═══════════════════════════════════════════════ */
 
 import { useState, useRef, useEffect, useCallback } from 'react';

@@ -1,2 +1,0 @@
-# Keeps uploads/ in git while its contents stay ignored (see .gitignore).
-# api.php writes uploaded documents here at runtime.

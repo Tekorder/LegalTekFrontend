@@ -2,13 +2,13 @@
 
 /* ═══════════════════════════════════════════════
    LegalTek AI — components/HomeSidebar.jsx
-   Top-level nav sidebar: Projects / Clients / Account
+   Top-level nav sidebar: Cases / Clients / Account
 ═══════════════════════════════════════════════ */
 
 import { Ico } from '@/lib/icons';
 
 const HOME_NAV_ITEMS = [
-  { key: 'cases',   label: 'Projects', icon: 'shield'   },
+  { key: 'cases',   label: 'Cases', icon: 'shield'   },
   { key: 'clients', label: 'Clients',  icon: 'users'    },
   { key: 'account', label: 'Account',  icon: 'settings' },
 ];

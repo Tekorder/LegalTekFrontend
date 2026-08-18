@@ -156,7 +156,7 @@ function Sidebar({
             <button
               onClick={onBackToCases}
               disabled={!onBackToCases}
-              title={onBackToCases ? 'Back to projects' : undefined}
+              title={onBackToCases ? 'Back to cases' : undefined}
               className="overflow-hidden flex-1 min-w-0 text-left"
             >
               <p className="text-[10px] uppercase tracking-wider mb-0.5 flex items-center gap-1"

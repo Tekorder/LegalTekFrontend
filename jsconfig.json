@@ -8,5 +8,5 @@
     "checkJs": false
   },
   "include": ["app/**/*", "components/**/*", "lib/**/*", "next.config.mjs"],
-  "exclude": ["node_modules", ".next", "_legacy_php"]
+  "exclude": ["node_modules", ".next"]
 }

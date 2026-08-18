@@ -68,7 +68,7 @@ function TeamPanel({ caseId, members, onClose, onMembersChange }) {
       if (alreadyIn) {
         setFeedback({
           type:    'already',
-          message: `${user.name} is already on this project.`,
+          message: `${user.name} is already on this case.`,
           user,
         });
         setSearching(false);
@@ -81,7 +81,7 @@ function TeamPanel({ caseId, members, onClose, onMembersChange }) {
       setEmail('');
       setFeedback({
         type:    'success',
-        message: `${user.name} has been added to the project.`,
+        message: `${user.name} has been added to the case.`,
         user,
       });
 
@@ -141,7 +141,7 @@ function TeamPanel({ caseId, members, onClose, onMembersChange }) {
           <div>
             <h3 className="text-gray-900 font-semibold text-base leading-none">Team Members</h3>
             <p className="text-gray-400 text-xs mt-1">
-              {members.length} member{members.length !== 1 ? 's' : ''} on this project
+              {members.length} member{members.length !== 1 ? 's' : ''} on this case
             </p>
           </div>
           <button onClick={onClose}
@@ -258,7 +258,7 @@ function TeamPanel({ caseId, members, onClose, onMembersChange }) {
                     disabled={removing === m.user_id}
                     className="flex-shrink-0 p-1.5 rounded text-gray-400 hover:text-red-500 transition-colors"
                     style={{ background: 'rgba(0,0,0,0.04)' }}
-                    title="Remove from project">
+                    title="Remove from case">
                     {removing === m.user_id
                       ? <Spinner size={12} />
                       : <Ico name="close" size={12} stroke="currentColor" />}
