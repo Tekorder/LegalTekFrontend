@@ -23,6 +23,7 @@ import HomeSidebar from '@/components/HomeSidebar';
 import CasesHome from '@/components/CasesHome';
 import ClientsHome from '@/components/ClientsHome';
 import AccountHome from '@/components/AccountHome';
+import UploadFieldsExtraction from '@/components/UploadFieldsExtraction';
 import AppShell from '@/components/AppShell';
 
 export default function Page() {
@@ -33,7 +34,7 @@ export default function Page() {
   const [personalCase, setPersonalCase] = useState(null);
   const [workspaceError, setWorkspaceError] = useState(null);
   const [selectedCase, setSelectedCase] = useState(null);
-  const [topView, setTopView] = useState('cases'); // 'cases' | 'clients' | 'account'
+  const [topView, setTopView] = useState('cases'); // 'cases' | 'clients' | 'lab-jose' | 'account'
 
   useEffect(() => {
     const auth = getFirebaseAuth();
@@ -138,6 +139,8 @@ export default function Page() {
               userDisplayName={user.displayName}
               userEmail={user.email}
             />
+          ) : topView === 'lab-jose' ? (
+            <UploadFieldsExtraction />
           ) : topView === 'account' ? (
             <AccountHome />
           ) : (

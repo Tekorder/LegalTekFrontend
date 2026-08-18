@@ -320,41 +320,6 @@ function Sidebar({
         )}
 
         {!collapsed && (
-          <button
-            type="button"
-            onClick={() => onViewChange(view === 'hearings' ? 'chat' : 'hearings')}
-            className="w-full py-2 px-3 rounded-lg text-sm font-medium flex items-center gap-2 transition-all text-left"
-            style={{
-              background: view === 'hearings' ? 'rgba(212,175,55,0.2)' : 'transparent',
-              border:       'none',
-              color:        view === 'hearings' ? '#f8e870' : 'rgba(212,175,55,0.75)',
-            }}
-            onMouseEnter={(e) => {
-              if (view !== 'hearings') e.currentTarget.style.background = 'rgba(212,175,55,0.08)';
-            }}
-            onMouseLeave={(e) => {
-              if (view !== 'hearings') e.currentTarget.style.background = 'transparent';
-            }}>
-            <Ico name="calendar" size={14} stroke="currentColor" />
-            Hearings
-          </button>
-        )}
-
-        {collapsed && (
-          <button
-            type="button"
-            onClick={() => onViewChange(view === 'hearings' ? 'chat' : 'hearings')}
-            title="Hearings"
-            className="w-10 h-10 mx-auto rounded-lg flex items-center justify-center transition-all"
-            style={{
-              background: view === 'hearings' ? 'rgba(212,175,55,0.2)' : 'transparent',
-              border:     'none',
-            }}>
-            <Ico name="calendar" size={15} stroke={view === 'hearings' ? '#f8e870' : 'rgba(212,175,55,0.65)'} />
-          </button>
-        )}
-
-        {!collapsed && (
           <div className="my-1" role="separator" style={{ borderTop: '1px solid rgba(212,175,55,0.22)' }} />
         )}
         {collapsed && (

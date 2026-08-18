@@ -8,9 +8,10 @@
 import { Ico } from '@/lib/icons';
 
 const HOME_NAV_ITEMS = [
-  { key: 'cases',   label: 'Projects', icon: 'shield'   },
-  { key: 'clients', label: 'Clients',  icon: 'users'    },
-  { key: 'account', label: 'Account',  icon: 'settings' },
+  { key: 'cases',    label: 'Projects', icon: 'shield'   },
+  { key: 'clients',  label: 'Clients',  icon: 'users'    },
+  { key: 'lab-jose', label: 'Lab Jose', icon: 'chart'    },
+  { key: 'account',  label: 'Account',  icon: 'settings' },
 ];
 
 function HomeSidebar({ topView, onSwitchView, userDisplayName, userEmail, onSignOut }) {

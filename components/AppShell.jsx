@@ -19,7 +19,6 @@ import DocsPanel from '@/components/DocsPanel';
 import AnalyzePanel from '@/components/AnalyzePanel';
 import ClientsPanel from '@/components/ClientsPanel';
 import BillingPanel from '@/components/BillingPanel';
-import HearingsPanel from '@/components/HearingsPanel';
 import TeamPanel from '@/components/TeamPanel';
 import InviteToChatModal from '@/components/InviteToChatModal';
 import DocumentEditor from '@/components/DocumentEditor';
@@ -449,9 +448,6 @@ export default function AppShell({ user, initialCase, onBackToCases }) {
       )}
       {view === 'billing' && (
         <BillingPanel caseId={activeCase.id} />
-      )}
-      {view === 'hearings' && (
-        <HearingsPanel caseId={activeCase.id} />
       )}
 
       {/* ── CHAT VIEW ── */}

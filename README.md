@@ -1,6 +1,6 @@
 # LegalTek AI — Frontend (Next.js)
 
-React frontend for LegalTek AI: cases, clients, documents, hearings, billing and
+React frontend for LegalTek AI: cases, clients, documents, billing and
 the AI chat. Migrated from the PHP/XAMPP + Babel-in-the-browser setup to the
 Next.js App Router.
 
@@ -151,7 +151,6 @@ HTTP status matters less than the envelope.
 | Clients | `clients.list` `clients.create` `clients.update` `clients.delete` |
 | Case ↔ client | `cases.clients` `cases.add_client` `cases.remove_client` |
 | Invoices | `invoices.list` `invoices.get` `invoices.create` `invoices.update` `invoices.update_status` `invoices.delete` |
-| Hearings | `hearings.list` `hearings.get` `hearings.create` `hearings.update` `hearings.delete` |
 | Users | `users.list` `users.find_by_email` `users.sync_firebase` |
 | Conversations | `conversations.list` `conversations.create` `conversations.rename` `conversations.delete` `conversations.members` `conversations.add_member` `conversations.remove_member` |
 | Messages | `messages.list` `messages.send` |

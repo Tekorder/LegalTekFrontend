@@ -8,7 +8,7 @@ import './globals.css';
 
 export const metadata = {
   title: 'LegalTek AI — Legal Assistant',
-  description: 'Intelligent legal analysis: cases, clients, documents, hearings and billing.',
+  description: 'Intelligent legal analysis: cases, clients, documents and billing.',
 };
 
 export const viewport = {
