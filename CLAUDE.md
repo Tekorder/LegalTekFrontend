@@ -1,7 +1,7 @@
 # LegalTek AI — Frontend
 
 Next.js (App Router) client for a legal case-management app: cases, clients,
-documents, hearings, billing, and an AI chat.
+documents, billing, an AI chat, and Labs (document agents).
 
 **Read `README.md` first.** It is thorough and current — the API contract, the
 action list, the request flow, and the environment table all live there. This
@@ -28,7 +28,7 @@ matches the database (`cases`, `case_members`, `case_clients`, `case_id`) and
 every API action (`cases.list`, `cases.invite`).
 
 Earlier UI copy said "project" in places. It has all been corrected. When adding
-copy, say case, matter, or hearing — never project. "Project" in this codebase
+copy, say case or matter — never project. "Project" in this codebase
 now refers only to a Firebase project or the repo root, never to legal work.
 
 ## Shape of the app
@@ -38,16 +38,23 @@ Firebase Auth, then hands off:
 
 ```
 page.jsx           auth gate → users.sync_firebase → home
-  HomeSidebar      Cases / Clients / Account
+  HomeSidebar      Cases / Clients / Labs / Account
   CasesHome        case list + create modal
   ClientsHome
+  LabsHome         card grid of every lab (parent page, like CasesHome)
+    LabRunner      the run screen for one lab — generic, descriptor-driven
   AccountHome
   AppShell         the case workspace, once a case is selected
     Sidebar        conversations
     ChatArea       messages + input
-    DocsPanel / AnalyzePanel / ClientsPanel / BillingPanel / HearingsPanel
+    DocsPanel / AnalyzePanel / ClientsPanel / BillingPanel
     TeamPanel, InviteToChatModal, DocumentEditor, DocEditViewer
 ```
+
+`components/HearingsPanel.jsx` is present but **unreferenced** — hearings were
+removed from the UI and the `hearings` table was dropped from the schema, but a
+merge restored the file. The backend still exposes `hearings.*` actions against
+a table that no longer exists.
 
 `AppShell` switches panels with a single `view` state string rather than routing.
 There is no server rendering to speak of: the app is Firebase-gated and
@@ -69,6 +76,24 @@ takes over.
   `style={{}}` for the gold/navy brand colors. Match the surrounding file.
 - User id: `getUserId()` from `lib/api.js`, backed by localStorage after
   `users.sync_firebase`. Returns `1` during SSR rather than throwing.
+
+## Labs are descriptor-driven — do not hardcode one
+
+`LabsHome` renders a card per lab from `labs.list`, and `LabRunner` builds its
+upload control, its input form, and its results table from that same
+descriptor. Neither component knows what a ledger or a contract is.
+
+That means **a new lab needs no frontend work at all** — register it in
+`../LegalTekBackend/src/labs/index.js` and it appears with a working screen. It
+also means the temptation to special-case a lab here is the thing to resist: if
+a lab needs a new control, add a new `input.type` that every lab can use, and a
+new `column.type` for the table, rather than branching on a lab id. The one
+existing exception is the expanded-row detail (`LedgerDetail` vs
+`FieldsDetail`), where the evidence genuinely differs in kind — a ledger shows
+a transactions table, a contract shows quoted clauses.
+
+Individual labs are **not** sidebar entries. `Labs` is one destination and the
+grid is the index, exactly as `Cases` lists cases.
 
 ## Things that will bite you
 
@@ -95,7 +120,17 @@ takes over.
 - **Chat deletion aborts in-flight generation** via `AbortController`.
   `AbortError` is expected and must stay swallowed (see `AppShell.jsx`), not
   surfaced as an error. `messages.send` may also answer `{cancelled: true}`.
-- **Uploads are `.docx` only**, sent as a `file` field with `conversation_id`,
-  `user_id`, and optionally `case_id`. Uploaded files live on the backend and
-  are served through the `/uploads/*` rewrite — this repo has no `uploads/`
+- **Two upload shapes, two field names.** Document uploads send one file as
+  `file`; lab runs send many as `files` (repeat the field) plus `lab` and a
+  JSON `inputs` string. The backend's multer config allowlists exactly those
+  two names — any other field name carrying a file is rejected. `apiUpload`
+  passes FormData straight through and needs no change for either.
+  `documents.upload` is still `.docx` only; labs accept whatever their
+  descriptor's `accepts` lists. Uploaded files live on the backend and are
+  served through the `/uploads/*` rewrite — this repo has no `uploads/`
   directory.
+- **Never render a ledger date through `parseDbDate`/`fmtDate`.** Those exist
+  for naive MySQL *datetimes* and re-anchor them to `NEXT_PUBLIC_APP_TIMEZONE`.
+  A ledger date is a bare calendar date (`2025-10-01`); putting it through that
+  path can shift it a day, and that field is the one that drives a legal
+  filing. `LabRunner` renders date columns as the raw string on purpose.

@@ -22,7 +22,8 @@ import HomeSidebar from '@/components/HomeSidebar';
 import CasesHome from '@/components/CasesHome';
 import ClientsHome from '@/components/ClientsHome';
 import AccountHome from '@/components/AccountHome';
-import UploadFieldsExtraction from '@/components/UploadFieldsExtraction';
+import LabsHome from '@/components/LabsHome';
+import LabRunner from '@/components/LabRunner';
 import AppShell from '@/components/AppShell';
 
 export default function Page() {
@@ -33,7 +34,9 @@ export default function Page() {
   const [personalCase, setPersonalCase] = useState(null);
   const [workspaceError, setWorkspaceError] = useState(null);
   const [selectedCase, setSelectedCase] = useState(null);
-  const [topView, setTopView] = useState('cases'); // 'cases' | 'clients' | 'lab-jose' | 'account'
+  const [topView, setTopView] = useState('cases'); // 'cases' | 'clients' | 'labs' | 'account'
+  /** Which lab is open inside the Labs view; null shows the lab grid. */
+  const [selectedLab, setSelectedLab] = useState(null);
 
   useEffect(() => {
     const auth = getFirebaseAuth();
@@ -127,7 +130,7 @@ export default function Page() {
       <div className="h-screen w-full flex overflow-hidden">
         <HomeSidebar
           topView={topView}
-          onSwitchView={setTopView}
+          onSwitchView={(v) => { setSelectedLab(null); setTopView(v); }}
           userDisplayName={user.displayName}
           userEmail={user.email}
           onSignOut={signOutUser}
@@ -138,8 +141,16 @@ export default function Page() {
               userDisplayName={user.displayName}
               userEmail={user.email}
             />
-          ) : topView === 'lab-jose' ? (
-            <UploadFieldsExtraction />
+          ) : topView === 'labs' ? (
+            selectedLab ? (
+              <LabRunner lab={selectedLab} onBack={() => setSelectedLab(null)} />
+            ) : (
+              <LabsHome
+                onSelectLab={setSelectedLab}
+                userDisplayName={user.displayName}
+                userEmail={user.email}
+              />
+            )
           ) : topView === 'account' ? (
             <AccountHome />
           ) : (
