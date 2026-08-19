@@ -2,7 +2,11 @@
 
 /* ═══════════════════════════════════════════════
    LegalTek AI — components/HomeSidebar.jsx
-   Top-level nav sidebar: Cases / Clients / Account
+   Top-level nav sidebar: Cases / Clients / Labs / Account
+
+   "Labs" is a single destination that lists every lab as a card, the same way
+   Cases lists every case — individual labs are not nav items, so registering a
+   new one on the backend never means editing this file.
 ═══════════════════════════════════════════════ */
 
 import { Ico } from '@/lib/icons';
@@ -10,7 +14,7 @@ import { Ico } from '@/lib/icons';
 const HOME_NAV_ITEMS = [
   { key: 'cases',   label: 'Cases',   icon: 'shield'   },
   { key: 'clients', label: 'Clients', icon: 'users'    },
-  { key: 'lab-jose', label: 'Lab Jose', icon: 'chart'    },
+  { key: 'labs',    label: 'Labs',    icon: 'chart'    },
   { key: 'account', label: 'Account', icon: 'settings' },
 ];
 

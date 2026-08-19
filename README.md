@@ -141,6 +141,7 @@ HTTP status matters less than the envelope.
 | Messages | `messages.list` `messages.send` |
 | Folders | `folders.list` `folders.create` `folders.rename` `folders.delete` |
 | Documents | `documents.get` `documents.list` `documents.list_all` `documents.upload` `documents.create_empty` `documents.save_text` `documents.delete` `documents.ai_edit` `documents.export_docx` |
+| Labs | `labs.list` `labs.run` |
 
 `documents.export_docx` is the one action that does **not** return the JSON
 envelope — it streams a `.docx` blob, and `DocsPanel` fetches it directly.
@@ -161,8 +162,13 @@ envelope — it streams a `.docx` blob, and `DocsPanel` fetches it directly.
   in `APP_TIMEZONE`. Keep writing them that way, or switch to ISO-8601 with an
   offset — `parseDbDate()` in `lib/format.js` handles both, but not a silent
   change of zone.
-- **Uploads** are `.docx` only, sent as a `file` field alongside
-  `conversation_id`, `user_id` and optionally `case_id`.
+- **Uploads** come in two shapes. `documents.upload` sends one `.docx` as a
+  `file` field alongside `conversation_id`, `user_id` and optionally `case_id`.
+  `labs.run` sends many files as a repeated `files` field, plus `lab` (the lab
+  id) and `inputs` (a JSON string). The backend allowlists exactly those two
+  field names.
+- **`labs.run` always answers `success: true`**, with per-row status inside.
+  A batch where some files fail still returns the rows that succeeded.
 - Uploaded files are served from `/uploads/*`, proxied to the backend by the
   same rewrite.
 
