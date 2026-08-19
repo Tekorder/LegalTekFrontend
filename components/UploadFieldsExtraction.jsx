@@ -1,7 +1,7 @@
 'use client';
 
 /* ═══════════════════════════════════════════════
-   LegalTek AI — components/UploadFieldsExtraction.jsx
+   LegalTek AI — components/UploadFieldsExtraction.jsx 
    "Lab Jose": bulk contract upload + comma-separated field extraction,
    run through either Claude or a local Ollama model.
 ═══════════════════════════════════════════════ */
