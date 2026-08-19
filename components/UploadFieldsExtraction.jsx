@@ -2,13 +2,20 @@
 
 /* ═══════════════════════════════════════════════
    LegalTek AI — components/UploadFieldsExtraction.jsx
-   "Lab Jose": bulk contract upload + comma-separated field search
+   "Lab Jose": bulk contract upload + comma-separated field extraction,
+   run through either Claude or a local Ollama model.
 ═══════════════════════════════════════════════ */
 
 import { useRef, useState } from 'react';
-import { Ico } from '@/lib/icons';
+import { apiUpload } from '@/lib/api';
+import { Ico, Spinner } from '@/lib/icons';
 
-const ACCEPTED = '.pdf,.doc,.docx,.txt';
+const ACCEPTED = '.docx';
+
+const PROVIDERS = [
+  { value: 'claude', label: 'Claude' },
+  { value: 'ollama', label: 'Ollama (local)' },
+];
 
 function formatBytes(bytes) {
   if (!bytes) return '0 KB';
@@ -20,8 +27,11 @@ function formatBytes(bytes) {
 function UploadFieldsExtraction() {
   const [files, setFiles] = useState([]);
   const [fieldsInput, setFieldsInput] = useState('');
+  const [provider, setProvider] = useState('claude');
   const [dragOver, setDragOver] = useState(false);
-  const [submitted, setSubmitted] = useState(null);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState(null);
+  const [result, setResult] = useState(null);
   const fileRef = useRef();
 
   const addFiles = (fileList) => {
@@ -32,20 +42,37 @@ function UploadFieldsExtraction() {
       const fresh = incoming.filter(f => !existingKeys.has(`${f.name}_${f.size}`));
       return [...prev, ...fresh];
     });
-    setSubmitted(null);
+    setResult(null);
+    setError(null);
   };
 
   const removeFile = (idx) => {
     setFiles(prev => prev.filter((_, i) => i !== idx));
-    setSubmitted(null);
+    setResult(null);
+    setError(null);
   };
 
   const fields = fieldsInput.split(',').map(s => s.trim()).filter(Boolean);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!files.length || !fields.length) return;
-    setSubmitted({ fileCount: files.length, fields });
+    if (!files.length || !fields.length || running) return;
+
+    setRunning(true);
+    setError(null);
+    setResult(null);
+    try {
+      const formData = new FormData();
+      files.forEach(f => formData.append('files', f));
+      formData.append('fields', fields.join(','));
+      formData.append('provider', provider);
+      const data = await apiUpload('lab.extract_fields', formData);
+      setResult(data);
+    } catch (err) {
+      setError(err.message || 'Extraction failed');
+    } finally {
+      setRunning(false);
+    }
   };
 
   return (
@@ -54,11 +81,11 @@ function UploadFieldsExtraction() {
         className="glass flex-shrink-0 px-8 py-4"
         style={{ borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
         <p className="text-gray-800 font-medium text-sm">Lab Jose</p>
-        <p className="text-gray-400 text-xs mt-0.5">Upload contracts and search across them</p>
+        <p className="text-gray-400 text-xs mt-0.5">Upload contracts and extract fields across them</p>
       </header>
 
       <main className="flex-1 overflow-y-auto px-8 py-6">
-        <form onSubmit={handleSubmit} className="max-w-xl mx-auto flex flex-col gap-6">
+        <form onSubmit={handleSubmit} className="max-w-2xl mx-auto flex flex-col gap-6">
 
           {/* Multi-file upload */}
           <div>
@@ -79,7 +106,7 @@ function UploadFieldsExtraction() {
               <Ico name="upload" size={22} stroke="currentColor" strokeWidth={1.5} />
               <span className="text-xs text-center leading-relaxed">
                 Drop contracts here or click to browse<br />
-                <span style={{ color: '#c2c2c2' }}>PDF, DOC, DOCX, TXT</span>
+                <span style={{ color: '#c2c2c2' }}>DOCX only</span>
               </span>
             </div>
             <input
@@ -115,34 +142,86 @@ function UploadFieldsExtraction() {
             )}
           </div>
 
-          {/* Fields to search */}
-          <div>
-            <label className="text-xs font-semibold text-gray-500 mb-1.5 block uppercase tracking-wide">
-              Fields to search
-            </label>
-            <input
-              value={fieldsInput}
-              onChange={e => setFieldsInput(e.target.value)}
-              placeholder="e.g. effective date, governing law, termination clause"
-              className="w-full chat-input rounded-lg px-4 py-2.5 text-sm"
-            />
-            <p className="text-[11px] text-gray-400 mt-1.5">Separate multiple fields with commas.</p>
+          {/* Fields to search + AI provider */}
+          <div className="flex gap-4 flex-col sm:flex-row">
+            <div className="flex-1">
+              <label className="text-xs font-semibold text-gray-500 mb-1.5 block uppercase tracking-wide">
+                Fields to search
+              </label>
+              <input
+                value={fieldsInput}
+                onChange={e => setFieldsInput(e.target.value)}
+                placeholder="e.g. name, billing_amount, billing_date"
+                className="w-full chat-input rounded-lg px-4 py-2.5 text-sm"
+              />
+              <p className="text-[11px] text-gray-400 mt-1.5">Separate multiple fields with commas.</p>
+            </div>
+
+            <div className="sm:w-48">
+              <label className="text-xs font-semibold text-gray-500 mb-1.5 block uppercase tracking-wide">
+                AI Provider
+              </label>
+              <select
+                value={provider}
+                onChange={e => setProvider(e.target.value)}
+                className="w-full chat-input rounded-lg px-4 py-2.5 text-sm"
+                style={{ appearance: 'auto' }}>
+                {PROVIDERS.map(p => (
+                  <option key={p.value} value={p.value}>{p.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <button
             type="submit"
-            disabled={!files.length || !fields.length}
+            disabled={!files.length || !fields.length || running}
             className="btn-primary py-2.5 px-6 rounded-lg text-white text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50 self-start">
-            <Ico name="chart" size={14} stroke="white" />
-            Run Search
+            {running
+              ? <><Spinner size={14} /> Extracting…</>
+              : <><Ico name="chart" size={14} stroke="white" /> Run Extraction</>}
           </button>
 
-          {submitted && (
+          {error && (
             <div
               className="px-4 py-3 rounded-lg text-sm"
-              style={{ background: 'rgba(5,150,105,0.08)', border: '1px solid rgba(5,150,105,0.2)', color: '#047857' }}>
-              Ready to search {submitted.fields.length} field{submitted.fields.length !== 1 ? 's' : ''} across{' '}
-              {submitted.fileCount} contract{submitted.fileCount !== 1 ? 's' : ''}: {submitted.fields.join(', ')}
+              style={{ background: 'rgba(185,28,28,0.08)', border: '1px solid rgba(185,28,28,0.2)', color: '#b91c1c' }}>
+              {error}
+            </div>
+          )}
+
+          {result && (
+            <div className="overflow-x-auto rounded-lg" style={{ border: '1px solid rgba(13,27,42,0.1)' }}>
+              <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: 'rgba(13,27,42,0.04)' }}>
+                    <th className="text-left px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                      Document
+                    </th>
+                    {result.fields.map(f => (
+                      <th key={f} className="text-left px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                        {f}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.results.map((row, idx) => (
+                    <tr key={`${row.filename}_${idx}`} style={{ borderTop: '1px solid rgba(13,27,42,0.08)' }}>
+                      <td className="px-3 py-2 font-medium text-gray-800 whitespace-nowrap">{row.filename}</td>
+                      {row.error ? (
+                        <td colSpan={result.fields.length} className="px-3 py-2" style={{ color: '#b91c1c' }}>
+                          {row.error}
+                        </td>
+                      ) : (
+                        result.fields.map(f => (
+                          <td key={f} className="px-3 py-2 text-gray-700">{row.fields?.[f] || '—'}</td>
+                        ))
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </form>
