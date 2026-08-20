@@ -199,6 +199,143 @@ function LedgerDetail({ row }) {
   );
 }
 
+function CategorizationDetail({ row }) {
+  const hasGap = (row.uncategorizedCents ?? 0) > 0;
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Reconciliation verdict — the actual deliverable */}
+      <div className="px-3 py-2.5 rounded-lg"
+        style={row.tiesOut
+          ? { background: 'rgba(5,150,105,0.06)', border: '1px solid rgba(5,150,105,0.18)' }
+          : { background: 'rgba(185,28,28,0.06)', border: '1px solid rgba(185,28,28,0.2)' }}>
+        <p className="text-[10px] font-semibold uppercase tracking-widest mb-1"
+          style={{ color: row.tiesOut ? '#047857' : '#b91c1c' }}>
+          {row.tiesOut ? 'Reconciled to the ledger' : 'Does NOT tie out'}
+        </p>
+        <p className="text-xs leading-relaxed" style={{ color: row.tiesOut ? '#065f46' : '#7f1d1d' }}>
+          {row.reconciliation?.note}
+        </p>
+      </div>
+
+      {/* The demand-letter breakdown */}
+      {row.buckets?.length > 0 && (
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: 'rgba(13,27,42,0.35)' }}>
+            Breakdown{row.firstDelinquency ? ` — all time vs ${row.firstDelinquency} through ${row.ledgerDate}` : ''}
+          </p>
+          <div className="overflow-x-auto rounded-lg" style={{ border: '1px solid rgba(13,27,42,0.1)' }}>
+            <table className="w-full text-xs" style={{ background: 'rgba(255,255,255,0.6)' }}>
+              <thead>
+                <tr style={{ background: 'rgba(13,27,42,0.04)' }}>
+                  {['Category', 'Lines', 'All time', 'Letter period'].map(h => (
+                    <th key={h} className="text-left px-3 py-2 font-semibold whitespace-nowrap"
+                      style={{ color: 'rgba(13,27,42,0.5)' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {row.buckets.map(b => (
+                  <tr key={b.key} style={{ borderTop: '1px solid rgba(13,27,42,0.07)' }}>
+                    <td className="px-3 py-1.5 text-gray-700">{b.label}</td>
+                    <td className="px-3 py-1.5 text-gray-400">{b.lineCount}</td>
+                    <td className="px-3 py-1.5 text-right font-medium text-gray-800 whitespace-nowrap">{b.amount}</td>
+                    <td className="px-3 py-1.5 text-right text-gray-600 whitespace-nowrap">{b.periodAmount ?? '—'}</td>
+                  </tr>
+                ))}
+                {hasGap && (
+                  <tr style={{ borderTop: '1px solid rgba(13,27,42,0.07)', background: 'rgba(217,119,6,0.07)' }}>
+                    <td className="px-3 py-1.5 font-medium" style={{ color: '#92400e' }}>Uncategorised</td>
+                    <td className="px-3 py-1.5" style={{ color: '#92400e' }}>
+                      {(row.lines || []).filter(l => l.category === 'UNCATEGORIZED').length}
+                    </td>
+                    <td className="px-3 py-1.5 text-right font-medium whitespace-nowrap" style={{ color: '#92400e' }}>{row.uncategorized}</td>
+                    <td className="px-3 py-1.5" />
+                  </tr>
+                )}
+                <tr style={{ borderTop: '2px solid rgba(13,27,42,0.18)', background: 'rgba(13,27,42,0.03)' }}>
+                  <td className="px-3 py-2 font-semibold text-gray-900">Total charged</td>
+                  <td className="px-3 py-2" />
+                  <td className="px-3 py-2 text-right font-semibold text-gray-900 whitespace-nowrap">{row.totalCharged}</td>
+                  <td className="px-3 py-2" />
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Per-line classification, with how each one was decided */}
+      {row.lines?.length > 0 && (
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: 'rgba(13,27,42,0.35)' }}>
+            Every charge line — {row.lines.length} classified
+          </p>
+          <div className="overflow-x-auto rounded-lg" style={{ border: '1px solid rgba(13,27,42,0.1)' }}>
+            <table className="w-full text-xs" style={{ background: 'rgba(255,255,255,0.6)' }}>
+              <thead>
+                <tr style={{ background: 'rgba(13,27,42,0.04)' }}>
+                  {['Line', 'Date', 'Description', 'Amount', 'Category', 'Decided by'].map(h => (
+                    <th key={h} className="text-left px-3 py-2 font-semibold whitespace-nowrap"
+                      style={{ color: 'rgba(13,27,42,0.5)' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {row.lines.map(l => {
+                  const unknown = l.category === 'UNCATEGORIZED';
+                  return (
+                    <tr key={l.lineNumber}
+                      style={{
+                        borderTop: '1px solid rgba(13,27,42,0.07)',
+                        background: unknown ? 'rgba(217,119,6,0.06)' : l.source === 'ai' ? 'rgba(212,175,55,0.08)' : 'transparent',
+                      }}>
+                      <td className="px-3 py-1.5 text-gray-400 whitespace-nowrap">{l.lineNumber}</td>
+                      <td className="px-3 py-1.5 text-gray-700 whitespace-nowrap">{l.date || '—'}</td>
+                      <td className="px-3 py-1.5 text-gray-700">
+                        {l.description}
+                        {l.knownCost && (
+                          <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded"
+                            style={{ background: 'rgba(5,150,105,0.1)', color: '#047857' }}>
+                            {l.knownCost}
+                          </span>
+                        )}
+                        {l.suggestionReason && (
+                          <span className="block text-[10px] mt-0.5" style={{ color: '#92400e' }}>{l.suggestionReason}</span>
+                        )}
+                        {l.rationale && (
+                          <span className="block text-[10px] mt-0.5 italic text-gray-400">{l.rationale}</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-1.5 text-right font-medium text-gray-800 whitespace-nowrap">{l.amount}</td>
+                      <td className="px-3 py-1.5 whitespace-nowrap">
+                        <span style={{ color: unknown ? '#92400e' : '#334155' }}>{l.categoryLabel}</span>
+                      </td>
+                      <td className="px-3 py-1.5 whitespace-nowrap">
+                        {l.source === 'rule' && <span className="text-[10px] text-gray-400">rule</span>}
+                        {l.source === 'ai' && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded"
+                            style={{ background: 'rgba(212,175,55,0.18)', color: '#8a6d1f' }}>
+                            AI · {l.confidence}
+                          </span>
+                        )}
+                        {!l.source && <span className="text-[10px]" style={{ color: '#92400e' }}>needs a person</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[10px] text-gray-400 mt-1.5">
+            Gold rows were classified by AI · amber rows the rules could not place and are waiting on a person.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FieldsDetail({ row }) {
   return (
     <div className="flex flex-col gap-2">
@@ -303,7 +440,13 @@ function LabRunner({ lab, onBack }) {
   }
 
   const columns = [...(lab.outputColumns || []), ...(result?.dynamicColumns || [])];
-  const isLedger = lab.id === 'ledger-zero-balance';
+
+  // The expanded row is the one place a lab's evidence genuinely differs in
+  // kind — a ledger shows transactions, a categorisation shows buckets, a
+  // contract shows quoted clauses. Everything else stays descriptor-driven.
+  const DetailView = lab.id === 'ledger-zero-balance'   ? LedgerDetail
+                   : lab.id === 'charge-categorization' ? CategorizationDetail
+                   :                                      FieldsDetail;
 
   return (
     <div className="h-full flex flex-col animated-bg overflow-hidden" style={{ color: '#1a1a2e' }}>
@@ -541,7 +684,7 @@ function LabRunner({ lab, onBack }) {
                                     ))}
                                   </ul>
                                 )}
-                                {isLedger ? <LedgerDetail row={row} /> : <FieldsDetail row={row} />}
+                                <DetailView row={row} />
                               </td>
                             </tr>
                           )}
