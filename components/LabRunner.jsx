@@ -14,8 +14,9 @@
 ═══════════════════════════════════════════════ */
 
 import { Fragment, useRef, useState } from 'react';
-import { apiUpload } from '@/lib/api';
+import { apiFetch, apiUpload } from '@/lib/api';
 import { Ico, Spinner } from '@/lib/icons';
+import DocumentEditor from '@/components/DocumentEditor';
 
 function formatBytes(bytes) {
   if (!bytes) return '0 KB';
@@ -36,7 +37,7 @@ const STATUS_STYLE = (row) =>
     ? { background: 'rgba(185,28,28,0.08)', color: '#b91c1c', border: '1px solid rgba(185,28,28,0.2)' }
     : { background: 'rgba(13,27,42,0.05)',  color: '#334155', border: '1px solid rgba(13,27,42,0.12)' };
 
-function Cell({ column, row }) {
+function Cell({ column, row, onOpenDocument }) {
   // Dynamic per-run column (contract fields): key is "field:<name>".
   if (column.key.startsWith('field:')) {
     const name = column.key.slice(6);
@@ -98,6 +99,19 @@ function Cell({ column, row }) {
 
   if (column.type === 'money') {
     return <span className="text-xs font-medium text-gray-800 whitespace-nowrap">{value ?? '—'}</span>;
+  }
+
+  if (column.type === 'document-link') {
+    if (!value) return <span className="text-xs text-gray-400">—</span>;
+    return (
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onOpenDocument?.(value); }}
+        className="text-[11px] font-semibold px-2 py-0.5 rounded transition-colors"
+        style={{ background: 'rgba(212,175,55,0.12)', color: '#8a6d1a', border: '1px solid rgba(212,175,55,0.3)' }}>
+        Open
+      </button>
+    );
   }
 
   return (
@@ -242,6 +256,26 @@ function FieldsDetail({ row }) {
   );
 }
 
+function OcrDetail({ row, onOpenDocument }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs text-gray-500">
+        {row.pages != null && <>{row.pages} page{row.pages !== 1 ? 's' : ''} · </>}
+        {row.chunkCount != null && <>{row.chunkCount} chunk{row.chunkCount !== 1 ? 's' : ''}</>}
+      </p>
+      {row.documentId && (
+        <button
+          type="button"
+          onClick={() => onOpenDocument?.(row.documentId)}
+          className="self-start text-[11px] font-semibold px-2.5 py-1 rounded transition-colors"
+          style={{ background: 'rgba(212,175,55,0.12)', color: '#8a6d1a', border: '1px solid rgba(212,175,55,0.3)' }}>
+          Open in editor
+        </button>
+      )}
+    </div>
+  );
+}
+
 /* ══════════════════════════════════════════════════════
    LAB RUNNER
 ══════════════════════════════════════════════════════ */
@@ -257,7 +291,16 @@ function LabRunner({ lab, onBack }) {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [expanded, setExpanded] = useState(null);
+  const [editingDoc, setEditingDoc] = useState(null);
   const fileRef = useRef();
+
+  async function openDocument(documentId) {
+    try {
+      setEditingDoc(await apiFetch('documents.get', { id: documentId }));
+    } catch (err) {
+      setError(err.message);
+    }
+  }
 
   const accept = (lab.accepts || []).join(',');
 
@@ -304,6 +347,7 @@ function LabRunner({ lab, onBack }) {
 
   const columns = [...(lab.outputColumns || []), ...(result?.dynamicColumns || [])];
   const isLedger = lab.id === 'ledger-zero-balance';
+  const isOcr = lab.id === 'ocr';
 
   return (
     <div className="h-full flex flex-col animated-bg overflow-hidden" style={{ color: '#1a1a2e' }}>
@@ -525,7 +569,7 @@ function LabRunner({ lab, onBack }) {
                             </td>
                             {columns.map(c => (
                               <td key={c.key} className="px-3 py-2.5 align-top">
-                                <Cell column={c} row={row} />
+                                <Cell column={c} row={row} onOpenDocument={openDocument} />
                               </td>
                             ))}
                           </tr>
@@ -541,7 +585,9 @@ function LabRunner({ lab, onBack }) {
                                     ))}
                                   </ul>
                                 )}
-                                {isLedger ? <LedgerDetail row={row} /> : <FieldsDetail row={row} />}
+                                {isLedger ? <LedgerDetail row={row} />
+                                  : isOcr ? <OcrDetail row={row} onOpenDocument={openDocument} />
+                                  : <FieldsDetail row={row} />}
                               </td>
                             </tr>
                           )}
@@ -556,6 +602,14 @@ function LabRunner({ lab, onBack }) {
           )}
         </div>
       </main>
+
+      {editingDoc && (
+        <DocumentEditor
+          doc={editingDoc}
+          onClose={() => setEditingDoc(null)}
+          onSaved={(html) => setEditingDoc(prev => prev ? { ...prev, extracted_text: html } : null)}
+        />
+      )}
     </div>
   );
 }
